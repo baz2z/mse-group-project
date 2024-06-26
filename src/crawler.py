@@ -15,15 +15,15 @@ def is_valid_url(url):
 
 
 #Crawl the web. You need (at least) two parameters:
-	#frontier: The frontier of known URLs to crawl. You will initially populate this with your seed set of URLs and later maintain all discovered (but not yet crawled) URLs here.
-	#index: The location of the local index storing the discovered documents. 
+#frontier: The frontier of known URLs to crawl. You will initially populate this with your seed set of URLs and later maintain all discovered (but not yet crawled) URLs here.
+#index: The location of the local index storing the discovered documents. 
 def crawl(frontier, index):
 	retrieved_pages = {}
 	visited = set()
 	pq = PriorityQueue()
 	for url in frontier:
 		pq.put((0, url))
-	while not pq.empty() and len(visited) < 100:
+	while not pq.empty() and len(visited) < 5:
 		priority, current_url = pq.get()
 		if current_url in visited or not is_valid_url(current_url):
 			continue
@@ -37,7 +37,7 @@ def crawl(frontier, index):
 				url = urljoin(current_url, url)
 			#print("internal link" + url)
 			pq.put((priority + 1, url))
-		retrieved_pages[current_url] = response.content[:199]
+		retrieved_pages[current_url] = response.content
 		visited.add(current_url)
 	save_data(retrieved_pages, index)
                                                                 
@@ -55,5 +55,5 @@ def save_data(data, index):
 
 
 if __name__ == "__main__":
-    urls = ["https://www.tuebingen.de/", "#"]
+    urls = ["https://www.tuebingen.de/"]
     crawl(urls, "documents.csv")
