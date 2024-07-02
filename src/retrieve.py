@@ -2,18 +2,22 @@ import numpy as np
 import re
 import nltk
 import math
+import json
+import sys
+import os
 
-from abc import ABC, abstractmethod
+from pathlib import Path
 from collections import Counter
 from nltk.corpus import reuters, stopwords
 from nltk.stem import PorterStemmer
 
+sys.path.insert(0, Path(__file__).resolve().parents[1])
 
-class Ranking(ABC):
+class Index():
     
     def __init__(self, corpus):
         """
-        An abstract ranker class for ranking documents based on a query.
+        A class to create and export index information given a corpus.
 
         This method is responsible for any preprocessing of the documents 
         and storing the necessary information for ranking.
@@ -30,17 +34,28 @@ class Ranking(ABC):
         # nltk intializations
         self.stemmer = PorterStemmer()
         self.stopwords = set(stopwords.words('english'))
-        self.reuters_corpus = None # TODO: reuters.words() oder so
         
-        # Preprocessing of the corpus
         self.docs_total = len(corpus)
-        self.doc_lengths = self.document_lengths()
+    
+    def initialize_index(self):
+
+        doc_lengths = self.document_lengths()
         
-        self.term_freqencies = self.tf(corpus)
-        self.idfs = self.idf(corpus)
+        tfs = self.tf(self.corpus)
+        idfs = self.idf(self.corpus)
+        # tfidfs = self.tfidf(self.corpus)
         
-        # Dummy variable for the final rankings
-        self.ranks = None
+        self.index_data = {doc_id: {
+            'length': doc_lengths[doc_id],
+            
+            'tf': tfs[doc_id],
+            'idf': idfs,
+            # 'tfidf': tfidfs[doc_id],
+            
+            # 'word2vec': self.embedding(corpus[doc_id]),
+            # ...
+            } for doc_id in self.doc_ids}
+          
     
     def bag_of_words(self, text):
         """
@@ -95,13 +110,13 @@ class Ranking(ABC):
         df = {}  # Document frequencies
 
         # Calculate document frequency for each word
-        for doc_id, doc in docs.values():
+        for doc in docs.values():
             unique_words = set(self.bag_of_words(doc)) # Consider each word once per document
             for word in unique_words:
                 df[word] = df.get(word, 0) + 1
 
-        # Calculate IDF for each word
-        idf_values = {word: math.log(N / df[word]) for word in df}
+        # Calculate IDF for each word (added laplace smoothing for unseen words in the corpus)
+        idf_values = {word: math.log((N+1) / (df[word]+1)) for word in df}
 
         return idf_values
     
@@ -112,8 +127,8 @@ class Ranking(ABC):
         Args:
             docs (_type_): _description_
         """
-              
-    def export_index(self, path):
+    
+    def export_index(self, index_name):
         """
         Exports the index to the specified file path.
         
@@ -133,15 +148,14 @@ class Ranking(ABC):
         Args:
             path (str): The file path where to export the inverted index.
         """
-        pass
-    
-    @abstractmethod
-    def rank(self, query):
-        pass
-    
+        path = Path("dat", f"{index_name}.json")
+        
+        with open(path, 'w') as f:
+            json.dump(self.index_data, f, indent=4)
     
     
-class QueryLikelihoodModel(Ranking):
+    
+class QueryLikelihoodModel():
     
     def __init__(self, corpus):
         """
@@ -164,9 +178,9 @@ class QueryLikelihoodModel(Ranking):
 
 
 
-class BM25(Ranking):
+class BM25():
     
-    def __init__(self, corpus):
+    def __init__(self, index_path):
         """
         Initialize BM25 on given corpus of documents.
         
@@ -177,9 +191,20 @@ class BM25(Ranking):
         Raises:
             AssertionError: if the corpus does not have the correct structure        
         """
-        super().__init__(corpus)
-        
         self.ranker = 'bm25'
+        
+        # nltk intializations
+        self.stemmer = PorterStemmer()
+        self.stopwords = set(stopwords.words('english'))
+        
+        # Load index
+        with open(index_path, 'r') as file:
+            index_data = json.load(file)
+            
+        self.doc_ids = index_data.keys()
+            
+        self.tf = {doc_id: index_data[doc_id]['tf'] for doc_id in index_data}
+        self.idf = {doc_id: index_data[doc_id]['idf'] for doc_id in index_data}
     
     def tfidf(self, query, doc_id):
         """
@@ -193,7 +218,7 @@ class BM25(Ranking):
         
         tfidf_scores = []
         for query_token in query_tokens:
-            query_idf = self.idf[query_token] # TODO: Whaat if query_token is not in idf -> smoothing?
+            query_idf = self.idf[doc_id][query_token] # TODO: Whaat if query_token is not in idf -> smoothing?
             query_tf = self.tf[doc_id].get(query_token, 0)
             tfidf_scores.append(query_tf * query_idf)
         
@@ -217,6 +242,25 @@ class BM25(Ranking):
             
         return sorted(self.ranks.items(), key=lambda x: x[1], reverse=True)[:10]
     
+    def bag_of_words(self, text):
+        """
+        Extracts bag of words from the given text.
+
+        Args:
+            text (str): The text from which to extract bag of words.
+
+        Returns:
+            list: List of unique words in the text.
+        """
+        text = re.sub(r'[^\w\s]', '', text)
+        # tokenize the text
+        tokens = text.lower().split()
+        # apply stemming and rem. stopwords
+        tokens = [self.stemmer.stem(token) for token in tokens
+                  if token not in self.stopwords]
+        
+        return tokens
+    
     def rank(query):
         pass
     
@@ -236,7 +280,16 @@ if __name__ == "__main__":
         'doc8': 'Bulldogs are really cool. Except the french ones. They are too french.',
     }
     
+    index = Index(corpus)
+    index.initialize_index()
+    
+    index_name = 'test_index'
+    index.export_index('test_index')
+    
+    
+    index_path = Path("dat", f"{index_name}.json")
+
     # Initialize BM25
-    bm25 = BM25(corpus)
-    ranked_docs = bm25.rank_tfidf('sample')
+    bm25 = BM25(index_path)
+    ranked_docs = bm25.rank_tfidf('french bulldog')
     print(ranked_docs)
