@@ -40,7 +40,9 @@ class BM25():
         self.b = 0.75 # default value for b
 
     def initialize_index(self):
-        
+        """
+        Initializes the index by loading the necessary data from the index json file.
+        """
         with open(self.index_path, 'r') as file:
             index_data = json.load(file)
         
@@ -52,7 +54,16 @@ class BM25():
         self.tfidf = load_csr_matrix(index_data['tfidfs'])
 
     def vectorize_query(self, query):
-        
+        """
+        Vectorizes the given query by creating a query vector based on the tokens in the query.
+
+        Args:
+            query (str): The query string.
+
+        Returns:
+            numpy.ndarray: The query vector representing the query.
+
+        """
         query_tokens = self.text_embedding.bag_of_words(query).split(' ')
         token_index = {token: i for i, token in enumerate(self.token_names)}
         
@@ -66,7 +77,15 @@ class BM25():
         return query_vec
     
     def rank_tfidf(self, query):
+        """
+        Ranks documents using TF-IDF scores.
         
+        Args:
+            query (str): The query string for which to calculate the TF-IDF scores.
+
+        Returns:
+            list: A list of tuples, where each tuple contains a document ID and its relevance score.
+        """
         query_vector = self.vectorize_query(query)
         scores = self.tfidf.dot(query_vector)
         
@@ -81,6 +100,17 @@ class BM25():
     
     # TODO: vectorize for better performance
     def rank(self, query):
+        """
+        BM25 ranking algorithm. 
+        
+        Uses the tfidf approach to compute relevance scores for documents given a query. 
+        
+        Args:
+            query (str): The query string.
+            
+        Returns:
+            list: A list of tuples, where each tuple contains a document ID and its relevance score.
+        """
         query_vector = self.vectorize_query(query)
         scores = np.zeros(len(self.doc_ids))
         
