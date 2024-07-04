@@ -1,83 +1,25 @@
 import asyncio
 import hashlib
 import json
-import logging
 import os
 from asyncio import sleep
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Iterator, Literal, NamedTuple, TypedDict
+from typing import Iterator, Literal
 
 import httpx
 import pandas as pd
 from bs4 import BeautifulSoup
 from cachetools import TTLCache
 from httpx import AsyncClient, Response, URL
-from tenacity import (
-    retry as _retry,
-    RetryError,
-    stop_after_attempt,
-    wait_random_exponential,
-)
+from tenacity import RetryError
 from tqdm import tqdm
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from crawler.config import CrawlerConfig
+from crawler.types import Index, ScrapingRequest
+from get_logger import get_logger
+from retry_wrapper import get_retry_wrapper
 
-BASE_DIR = Path(__file__).parent.parent.parent / "dat" / "crawler"
-HTML_DIR = BASE_DIR / "html"
-INDEX_DIR = BASE_DIR / "index"
-
-HTML_DIR.mkdir(parents=True, exist_ok=True)
-INDEX_DIR.mkdir(parents=True, exist_ok=True)
-
-USER_AGENT = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-    "AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/126.0.0.0 Safari/537.36"
-)
-
-SEED_URLS = [
-    URL("https://www.tuebingen.de/"),
-    URL("https://www.tuebingen.de/en/"),
-    URL("https://www.tuebingen-info.de/"),
-    URL("https://www.tuepedia.de/"),
-]
-
-
-@dataclass(frozen=True)
-class CrawlerConfig:
-    seed_urls = SEED_URLS
-    allowed_domains = []
-    html_dir = HTML_DIR
-    ids_dir = BASE_DIR
-    index_dir = INDEX_DIR
-    max_depth = 5
-    headers = {"User-Agent": USER_AGENT}
-    max_docs = 1e5
-    sleep_time = 2
-
-
-class ScrapingRequest(NamedTuple):
-    doc_id: str
-    url: URL
-    depth: int
-
-
-class Index(TypedDict):
-    url: str
-    text: str
-
-
-def before_sleep(retry_state):
-    logger.error(f"Retrying after {retry_state.outcome.exception()}")
-
-
-retry = _retry(
-    stop=stop_after_attempt(3),
-    wait=wait_random_exponential(),
-    before_sleep=before_sleep,
-)
+logger = get_logger("crawler")
+retry = get_retry_wrapper(logger)
 
 
 class Crawler:
@@ -100,19 +42,53 @@ class Crawler:
             self._client = AsyncClient(headers=self.config.headers)
         return self._client
 
+    def check_allowed_domains(self, domain: bytes | str) -> bool:
+        if not self.config.allowed_domains_pattern:
+            return True
+
+        for pattern in self.config.allowed_domains_pattern:
+            if pattern.match(domain):
+                return True
+
+        return False
+
+    def check_denied_domains(self, domain: bytes | str) -> bool:
+        for pattern in self.config.forbidden_domains_pattern:
+            if pattern.match(domain):
+                return False
+
+        return True
+
     @staticmethod
-    def is_url_valid(url: URL) -> bool:
+    def check_url_has_extension(url: URL) -> bool:
+        for part in (url.path, url.query, url.params, url.fragment):
+            if os.path.splitext(part)[-1]:
+                logger.info(f"URL {url} has an extension")
+                return True
+        return False
+
+    def is_url_valid(self, url: URL) -> bool:
         """
         Checks if the URL is valid by checking if it has a scheme and netloc
         and if it does not have an extension (e.g., .jpg, .png, .pdf)
         """
-        _, ext = os.path.splitext(url.path)
-        is_valid = bool(url.scheme) and bool(url.netloc) and not ext
+        if not (bool(url.scheme) and bool(url.netloc)):
+            logger.info(f"URL {url} is not valid")
+            return False
 
-        if not is_valid:
-            logger.debug(f"Invalid URL: {url}")
+        if not self.check_allowed_domains(url.netloc):
+            logger.info(f"URL {url} is not allowed")
+            return False
 
-        return is_valid
+        if not self.check_denied_domains(url.netloc):
+            logger.info(f"URL {url} is denied")
+            return False
+
+        if self.check_url_has_extension(url):
+            logger.info(f"URL {url} has an extension")
+            return False
+
+        return True
 
     @staticmethod
     def extract_text_from_soup(soup: BeautifulSoup) -> str:
@@ -132,7 +108,7 @@ class Crawler:
         while self.recently_visited.get(url.netloc):
             await sleep(0.1)
 
-        response = await self.client.get(url)
+        response = await self.client.get(url, follow_redirects=False, timeout=10)
         response.raise_for_status()
         return response
 
@@ -157,11 +133,7 @@ class Crawler:
             yield {
                 "doc_id": hashlib.md5(str(url).encode()).hexdigest(),
                 "url": url,
-                "scheme": url.scheme,
-                "netloc": url.netloc,
-                "path": url.path,
-                "query": url.query,
-                "fragment": url.fragment,
+                "domain": url.netloc,
                 "depth": 0,
                 "status": "pending",
                 "created": pd.Timestamp.now(),
@@ -185,11 +157,7 @@ class Crawler:
 
         self.frontier.loc[doc_id] = {
             "url": str(url),
-            "scheme": url.scheme,
-            "netloc": url.netloc,
-            "path": url.path,
-            "query": url.query,
-            "fragment": url.fragment,
+            "domain": url.netloc,
             "depth": depth,
             "status": "pending",
             "created": pd.Timestamp.now(),
@@ -205,18 +173,19 @@ class Crawler:
         5. Prioritize the documents that are recently visited
         6. Return a batch of documents to be scraped (up to the limit, all from different domains)
         """
-        query = "status == 'pending' and depth < @self.config.max_depth"
-        if self.config.allowed_domains:
-            query += " and netloc in @self.config.allowed_domains"
-
-        pending_docs = self.frontier.query(query)
-        pending_docs = pending_docs.sort_values(
-            ["depth", "created"], ascending=[True, True]
+        pending_docs = self.frontier.query(
+            "status == 'pending' and depth < @self.config.max_depth"
         )
-        pending_docs = pending_docs.groupby("netloc").first()
-
+        pending_docs = (
+            pending_docs.reset_index(drop=False)
+            .sort_values(["depth", "created"], ascending=[True, True])
+            .groupby("netloc")
+            .first()
+            .reset_index(drop=False)
+            .set_index("doc_id")
+        )
         recently_visited = self.recently_visited.keys()
-        pending_docs["recently_visited"] = pending_docs["netloc"].map(
+        pending_docs["recently_visited"] = pending_docs["domain"].map(
             lambda x: x in recently_visited
         )
         pending_docs = pending_docs.sort_values(["recently_visited"], ascending=[True])
@@ -263,8 +232,9 @@ class Crawler:
         self.frontier.to_csv(self.config.ids_dir / f"{self.run_id}.csv")
 
     def create_index(self, response: Response, soup: BeautifulSoup) -> Index:
+        url = str(response.url)
         text = self.extract_text_from_soup(soup)
-        return {"url": str(response.url), "text": text}
+        return {"url": url, "text": text}
 
     async def crawl(self, req: ScrapingRequest) -> None:
         """
