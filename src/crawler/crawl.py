@@ -62,8 +62,7 @@ class Crawler:
     @staticmethod
     def check_url_has_extension(url: URL) -> bool:
         for part in (url.path, url.query, url.params, url.fragment):
-            if os.path.splitext(part)[-1]:
-                logger.info(f"URL {url} has an extension")
+            if os.path.splitext(part)[1]:
                 return True
         return False
 
@@ -72,20 +71,20 @@ class Crawler:
         Checks if the URL is valid by checking if it has a scheme and netloc
         and if it does not have an extension (e.g., .jpg, .png, .pdf)
         """
-        if not (bool(url.scheme) and bool(url.netloc)):
+        if not (url.scheme and url.netloc):
             logger.info(f"URL {url} is not valid")
             return False
 
-        if not self.check_allowed_domains(url.netloc):
-            logger.info(f"URL {url} is not allowed")
+        if self.check_url_has_extension(url):
+            logger.info(f"URL {url} has an extension")
             return False
 
         if not self.check_denied_domains(url.netloc):
             logger.info(f"URL {url} is denied")
             return False
 
-        if self.check_url_has_extension(url):
-            logger.info(f"URL {url} has an extension")
+        if not self.check_allowed_domains(url.netloc):
+            logger.info(f"URL {url} is not allowed")
             return False
 
         return True
@@ -150,7 +149,7 @@ class Crawler:
         Adds the URL to the frontier if it does not exist already
         """
         if (
-            doc_id := hashlib.md5(str(url).encode()).hexdigest()
+                doc_id := hashlib.md5(str(url).encode()).hexdigest()
         ) in self.frontier.index:
             logger.debug(f"URL {url} already exists in the frontier")
             return None
@@ -217,7 +216,7 @@ class Crawler:
         return url if self.is_url_valid(url) else None
 
     def mark_status(
-        self, doc_id: str, status: Literal["pending", "completed", "failed"]
+            self, doc_id: str, status: Literal["pending", "completed", "failed"]
     ) -> None:
         self.frontier.loc[doc_id, "status"] = status
 
@@ -271,7 +270,7 @@ class Crawler:
         """
         pbar = tqdm(total=self.config.max_docs - self.count_docs())
         while (
-            req := self.fetch_next_doc_batch()
+                req := self.fetch_next_doc_batch()
         ) and self.count_docs() < self.config.max_docs:
             await asyncio.gather(*[self.crawl(r) for r in req])
             self.save_frontier()

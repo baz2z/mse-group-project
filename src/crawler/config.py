@@ -28,14 +28,12 @@ SEED_URLS = [
 ]
 
 ALLOWED_DOMAINS_REGEX = [
-    re.compile(r"\S+\.(de|com|org|net)$"),
+    # the domain must start with www, de, or en and end with com, de, org, or net
+    # examples of valid domains: www.example.com, de.example.de, en.example.org, example.net
+    re.compile(r"^(www|de|en)?\.?([a-zA-Z0-9-]+)\.(com|de|org|net)$", re.IGNORECASE),
 ]
 
-FORBIDDEN_DOMAINS_REGEX = [
-    re.compile(r"^(?!de\.)(?!en\.)\S+\.wikipedia\.org$"),
-    re.compile(r"^(?!de\.)(?!en\.)\S+\.wikipedia\.org$"),
-    re.compile(r"^(?!de\.)(?!en\.)\S+\.wikipedia\.org$"),
-]
+FORBIDDEN_DOMAINS_REGEX = []
 
 
 @dataclass(frozen=True)
