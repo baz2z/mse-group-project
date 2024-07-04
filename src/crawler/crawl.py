@@ -1,19 +1,28 @@
 import asyncio
 import hashlib
 import json
+import logging
 import os
 from asyncio import sleep
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator, NamedTuple, TypedDict
+from typing import Iterator, Literal, NamedTuple, TypedDict
 
 import httpx
 import pandas as pd
 from bs4 import BeautifulSoup
 from cachetools import TTLCache
 from httpx import AsyncClient, Response, URL
-from tenacity import retry, RetryError, stop_after_attempt, wait_random_exponential
+from tenacity import (
+    retry as _retry,
+    RetryError,
+    stop_after_attempt,
+    wait_random_exponential,
+)
 from tqdm import tqdm
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).parent.parent.parent / "dat" / "crawler"
 HTML_DIR = BASE_DIR / "html"
@@ -60,12 +69,25 @@ class Index(TypedDict):
     text: str
 
 
+def before_sleep(retry_state):
+    logger.error(f"Retrying after {retry_state.outcome.exception()}")
+
+
+retry = _retry(
+    stop=stop_after_attempt(3),
+    wait=wait_random_exponential(),
+    before_sleep=before_sleep,
+)
+
+
 class Crawler:
     def __init__(self, run_id: str = "", config: CrawlerConfig = None):
         self.run_id: str = run_id or pd.Timestamp.now().strftime("%Y%m%d%H%M%S")
         self.config: CrawlerConfig = config or CrawlerConfig()
         self.frontier: pd.DataFrame = self.load_frontier()
-        self.recently_visited: TTLCache = TTLCache(maxsize=100, ttl=self.config.sleep_time)
+        self.recently_visited: TTLCache = TTLCache(
+            maxsize=100, ttl=self.config.sleep_time
+        )
         self._client: AsyncClient or None = None
 
     @property
@@ -74,6 +96,7 @@ class Crawler:
         Returns the HTTP client with the headers set
         """
         if self._client is None:
+            logger.info("Creating a new HTTP client")
             self._client = AsyncClient(headers=self.config.headers)
         return self._client
 
@@ -84,7 +107,12 @@ class Crawler:
         and if it does not have an extension (e.g., .jpg, .png, .pdf)
         """
         _, ext = os.path.splitext(url.path)
-        return bool(url.scheme) and bool(url.netloc) and not ext
+        is_valid = bool(url.scheme) and bool(url.netloc) and not ext
+
+        if not is_valid:
+            logger.debug(f"Invalid URL: {url}")
+
+        return is_valid
 
     @staticmethod
     def extract_text_from_soup(soup: BeautifulSoup) -> str:
@@ -94,7 +122,7 @@ class Crawler:
         paragraphs = (p.get_text().strip() for p in soup.find_all("p"))
         return " \n ".join(p for p in paragraphs if p)
 
-    @retry(stop=stop_after_attempt(3), wait=wait_random_exponential())
+    @retry
     async def _get(self, url: URL) -> Response:
         """
         Fetches the URL and raises an exception if the status code is not 2xx
@@ -115,8 +143,10 @@ class Crawler:
         """
         fp = self.config.ids_dir / f"{self.run_id}.csv"
         if fp.exists():
+            logger.info("Loading the existing frontier")
             return pd.read_csv(fp).set_index("doc_id")
         else:
+            logger.info("Creating a new frontier")
             return pd.DataFrame(self.convert_seed_to_frontier()).set_index("doc_id")
 
     def convert_seed_to_frontier(self) -> Iterator[dict[str, any]]:
@@ -148,8 +178,9 @@ class Crawler:
         Adds the URL to the frontier if it does not exist already
         """
         if (
-                doc_id := hashlib.md5(str(url).encode()).hexdigest()
+            doc_id := hashlib.md5(str(url).encode()).hexdigest()
         ) in self.frontier.index:
+            logger.debug(f"URL {url} already exists in the frontier")
             return None
 
         self.frontier.loc[doc_id] = {
@@ -177,17 +208,19 @@ class Crawler:
         query = "status == 'pending' and depth < @self.config.max_depth"
         if self.config.allowed_domains:
             query += " and netloc in @self.config.allowed_domains"
-        pending_docs = self.frontier.query(query)
 
+        pending_docs = self.frontier.query(query)
         pending_docs = pending_docs.sort_values(
             ["depth", "created"], ascending=[True, True]
         )
         pending_docs = pending_docs.groupby("netloc").first()
 
+        recently_visited = self.recently_visited.keys()
         pending_docs["recently_visited"] = pending_docs["netloc"].map(
-            lambda x: x in self.recently_visited.keys()
+            lambda x: x in recently_visited
         )
         pending_docs = pending_docs.sort_values(["recently_visited"], ascending=[True])
+
         return [
             ScrapingRequest(
                 doc_id=str(doc_id),
@@ -199,14 +232,14 @@ class Crawler:
 
     def extract_links(self, soup: BeautifulSoup, base_url: URL) -> Iterator[URL]:
         for link_element in soup.find_all("a", href=True):
-            url = link_element["href"]
-            if url := self.extract_url(url, base_url):
+            if url := self.extract_url(link_element["href"], base_url):
                 yield url
 
     def extract_url(self, url: str, base_url: URL) -> URL or None:
         try:
             url = URL(url)
         except httpx.InvalidURL:
+            logger.debug(f"Invalid URL: {url}")
             return None
 
         if url.is_relative_url:
@@ -214,7 +247,9 @@ class Crawler:
 
         return url if self.is_url_valid(url) else None
 
-    def mark_status(self, doc_id: str, status: str) -> None:
+    def mark_status(
+        self, doc_id: str, status: Literal["pending", "completed", "failed"]
+    ) -> None:
         self.frontier.loc[doc_id, "status"] = status
 
     def save_data(self, doc_id: str, content: str, index: dict[str, any]) -> None:
@@ -266,9 +301,9 @@ class Crawler:
         """
         pbar = tqdm(total=self.config.max_docs - self.count_docs())
         while (
-                req := self.fetch_next_doc_batch()
+            req := self.fetch_next_doc_batch()
         ) and self.count_docs() < self.config.max_docs:
-            await asyncio.gather(*(self.crawl(r) for r in req))
+            await asyncio.gather(*[self.crawl(r) for r in req])
             self.save_frontier()
             pbar.update(len(req))
 
