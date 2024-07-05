@@ -176,8 +176,9 @@ class Crawler:
         6. Return a batch of documents to be scraped (up to the limit, all from different domains)
         """
         pending_docs = (
-            self.frontier
-            .query("status == 'pending' and depth < @self.config.max_depth")
+            self.frontier.query(
+                "status == 'pending' and depth < @self.config.max_depth"
+            )
             .reset_index(drop=False)
             .sort_values(["depth", "created"], ascending=[True, True])
             .groupby("domain")
@@ -213,7 +214,7 @@ class Crawler:
         return url if self.is_url_valid(url) else None
 
     def mark_status(
-            self, doc_id: str, status: Literal["pending", "completed", "failed"]
+        self, doc_id: str, status: Literal["pending", "completed", "failed"]
     ) -> None:
         self.frontier.loc[doc_id, "status"] = status
 
@@ -250,14 +251,14 @@ class Crawler:
         try:
             response = await self._get(req.url)
         except (
-                httpx.HTTPError,
-                ssl.SSLError,
+            httpx.HTTPError,
+            ssl.SSLError,
         ):
             response = None
 
         if (
-                not response
-                or response.headers.get("content-type", "").split(";")[0] != "text/html"
+            not response
+            or response.headers.get("content-type", "").split(";")[0] != "text/html"
         ):
             self.mark_status(req.doc_id, "failed")
             return False
@@ -286,7 +287,7 @@ class Crawler:
         """
         pbar = tqdm(total=self.config.max_docs - self.count_docs())
         while (
-                req := self.fetch_next_doc_batch()
+            req := self.fetch_next_doc_batch()
         ) and self.count_docs() < self.config.max_docs:
             results = await asyncio.gather(*[self.crawl(r) for r in req])
             self.save_frontier()
