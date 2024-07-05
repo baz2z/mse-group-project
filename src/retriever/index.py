@@ -41,7 +41,10 @@ class Index():
         self.tf_vectorizer = CountVectorizer()
         self.idf_transformer = TfidfTransformer(use_idf=True, smooth_idf=True)
         self.tfidf_tranformer = TfidfTransformer(smooth_idf=True)
-    
+
+        self.bert_embeddings = self.text_embedding.get_bert_embeddings()
+
+
     def initialize_index(self):
         
         print("Initializing index...")
@@ -52,6 +55,8 @@ class Index():
         idfs = self.idf(tfs, token_names)
         tfidfs = self.tfidf(tfs)
         doc_lengths = self.doc_lens(tfs)
+
+        # bert_embeddings = self.bert_embeddings
         
         self.index_data = {
             'doc_ids': doc_ids,
@@ -60,6 +65,7 @@ class Index():
             'tfs': tfs,
             'idfs': idfs,
             'tfidfs': tfidfs,
+            # 'bert_embeddings': bert_embeddings,
         }
 
         print("Index created successfully.")
