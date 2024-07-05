@@ -56,7 +56,7 @@ class Index():
         tfidfs = self.tfidf(tfs)
         doc_lengths = self.doc_lens(tfs)
 
-        bert_embeddings = self.bert_embeddings
+        # bert_embeddings = self.bert_embeddings
         
         self.index_data = {
             'doc_ids': doc_ids,
@@ -65,7 +65,7 @@ class Index():
             'tfs': tfs,
             'idfs': idfs,
             'tfidfs': tfidfs,
-            'bert_embeddings': bert_embeddings,
+            # 'bert_embeddings': bert_embeddings,
         }
 
         print("Index created successfully.")

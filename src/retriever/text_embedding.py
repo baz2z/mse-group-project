@@ -74,6 +74,47 @@ class TextEmbedding():
         pass # TODO: Immplement
 
 
+    def get_single_bert_embedding(self, text, Nq=16):
+        """
+        Generates BERT embeddings for a single text input.
+
+        Args:
+            text (str): The text to generate embeddings for.
+
+        Returns:
+            list: The BERT embeddings for the input text.
+        """
+
+        inputs = self.tokenizer(self.remove_stopwords(text), return_tensors="pt", padding=True, truncation=True)
+
+        # # Get the actual length of input_ids
+        # input_length = inputs['input_ids'].size(1)
+
+        # # Pad or truncate
+        # if input_length < Nq:
+        #     # Calculate the number of mask tokens to add
+        #     num_mask_tokens = Nq - input_length
+        #     # Create a tensor of mask tokens
+        #     mask_tokens = torch.full((1, num_mask_tokens), self.tokenizer.mask_token_id, dtype=torch.long)
+        #     # Concatenate the mask tokens to the input_ids
+        #     inputs['input_ids'] = torch.cat([inputs['input_ids'], mask_tokens], dim=1)
+        #     # Also, adjust the attention_mask to account for the added mask tokens
+        #     attention_mask = torch.cat([inputs['attention_mask'], torch.ones((1, num_mask_tokens), dtype=torch.long)], dim=1)
+        #     inputs['attention_mask'] = attention_mask
+        # elif input_length > Nq:
+        #     # Truncate the input_ids and attention_mask to Nq tokens
+        #     inputs['input_ids'] = inputs['input_ids'][:, :Nq]
+        #     inputs['attention_mask'] = inputs['attention_mask'][:, :Nq]
+
+        outputs = self.model(**inputs)
+        last_hidden_states = outputs.last_hidden_state
+
+        # Normalize the embeddings
+        norm = torch.norm(last_hidden_states, p=2, dim=2, keepdim=True)
+        normalized_single_embedding = last_hidden_states / norm
+        return normalized_single_embedding.tolist()
+
+
     def get_bert_embeddings(self):
         """
         Generates BART embeddings for each term in the corpus, handling documents longer than the maximum sequence length by chunking.
@@ -85,8 +126,11 @@ class TextEmbedding():
         max_length = 512  # Assuming 512 is the max length for BART
         for doc_id, document in self.corpus.items():
             # Ensure the document is not empty by appending a space if it is
+            document = self.remove_stopwords(document)
+
             if not document:
                 document = " "
+            # remove stopwords of document
             # Split document into chunks
             chunks = [document[i:i+max_length] for i in range(0, len(document), max_length)]
             chunk_embeddings = []
@@ -98,8 +142,29 @@ class TextEmbedding():
             
             # Concatenate embeddings from all chunks
             concatenated_embeddings = torch.cat(chunk_embeddings, dim=1)
-            embeddings[doc_id] = concatenated_embeddings.tolist()
+            # normaliize concatenated embeddings
+
+            # Calculate the Euclidean norm (magnitude) of the vector
+            magnitude = torch.norm(concatenated_embeddings, p=2, dim=2, keepdim=True)
+            # Normalize the vector by dividing by its magnitude
+            normalized_embeddings = concatenated_embeddings / magnitude
+
+            embeddings[doc_id] = normalized_embeddings.tolist()
         return embeddings
+    
+    def remove_stopwords(self, text):
+        """
+        Removes stopwords from the given text.
+
+        Args:
+            text (str): The text from which to remove stopwords.
+
+        Returns:
+            str: The text with stopwords removed.
+        """
+        tokens = text.split()
+        tokens = [token for token in tokens if token not in self.stopwords]
+        return ' '.join(tokens)
 
     
     

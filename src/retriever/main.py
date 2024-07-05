@@ -7,6 +7,7 @@ print(Path(__file__).resolve().parents[1])
 # internal imports:
 from index import Index
 from bm25 import BM25
+from colBERT import colBERT
 from in_out import load_corpus_from_json_files, load_url_mapping_from_csv
 
 def dummy_usage():
@@ -72,11 +73,12 @@ def main():
     url_mapping = load_url_mapping_from_csv(mapping_path)
     
     # ! Set exist_ok to False if corpus has changed
-    path_to_index = create_index(corpus_tue, "index_tue_v0", exist_ok=True)
+    path_to_index = create_index(corpus_tue, "index_tue_v2", exist_ok=True)
     
     query = 'Wo kann man gut Wein trinken in Tübingen?'
+    # colBERT_ranker = colBERT(path_to_index)
     bm25 = BM25(path_to_index)
-    ranked_docs = bm25.rank(query)
+    ranked_docs = bm25.rank(query=query)
     
     top5 = ranked_docs[:5]
     print("Top 5 documents for 'gastronomie in tübingen restaurant':")
