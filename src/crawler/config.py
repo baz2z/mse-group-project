@@ -17,20 +17,24 @@ USER_AGENT = (
     "Chrome/126.0.0.0 Safari/537.36"
 )
 
-SEED_URLS = [
+SEED_URLS = {
     URL("https://www.tuebingen.de/"),
     URL("https://www.tuebingen.de/en/"),
     URL("https://www.tuebingen-info.de/"),
     URL("https://www.tuepedia.de/"),
+    URL("https://www.swabianalb.info/cities/tuebingen"),
+    URL("https://www.tuemarkt.de/"),
+    URL("https://uni-tuebingen.de/en/"),
     URL("https://en.wikipedia.org/wiki/T%C3%BCbingen"),
     URL("https://de.wikipedia.org/wiki/T%C3%BCbingen"),
-    URL("https://uni-tuebingen.de/en/"),
-]
+}
 
 ALLOWED_DOMAINS_REGEX = [
     # the domain must start with www, de, or en and end with com, de, org, or net
     # examples of valid domains: www.example.com, de.example.de, en.example.org, example.net
-    re.compile(r"^(www|de|en)?\.?([a-zA-Z0-9-]+)\.(com|de|org|net)$", re.IGNORECASE),
+    re.compile(
+        r"^(www|de|en)?\.?([a-zA-Z0-9-]+)\.(com|de|org|net|info)$", re.IGNORECASE
+    ),
 ]
 
 FORBIDDEN_DOMAINS_REGEX = []
@@ -44,7 +48,7 @@ class CrawlerConfig:
     index_dir = INDEX_DIR
     max_depth = 5
     headers = {"User-Agent": USER_AGENT}
-    max_docs = 100
-    sleep_time = 2
+    max_docs = 1e4
+    sleep_time = 1
     allowed_domains_pattern = ALLOWED_DOMAINS_REGEX
     forbidden_domains_pattern = FORBIDDEN_DOMAINS_REGEX
