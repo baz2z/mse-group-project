@@ -179,7 +179,6 @@ class Crawler:
             self.frontier.query(
                 "status == 'pending' and depth < @self.config.max_depth"
             )
-            .reset_index(drop=False)
             .sort_values(["depth", "created"], ascending=[True, True])
             .drop_duplicates(subset=["domain"], keep="first")
             .head(limit)
