@@ -48,7 +48,8 @@ class CrawlerConfig:
     index_dir = INDEX_DIR
     max_depth = 5
     headers = {"User-Agent": USER_AGENT}
-    max_docs = 1e4
+    max_docs = 1e5
     sleep_time = 1
+    timeout = 10
     allowed_domains_pattern = ALLOWED_DOMAINS_REGEX
     forbidden_domains_pattern = FORBIDDEN_DOMAINS_REGEX

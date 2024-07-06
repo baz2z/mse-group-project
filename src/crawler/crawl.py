@@ -2,24 +2,21 @@ import asyncio
 import hashlib
 import json
 import os
-import ssl
 from asyncio import sleep
 from typing import Iterator, Literal
 
 import httpx
 import pandas as pd
+import tenacity
 from bs4 import BeautifulSoup
 from cachetools import TTLCache
 from httpx import AsyncClient, Response, URL
+from tenacity import retry, stop_after_attempt, wait_random_exponential
 from tqdm import tqdm
 
 from crawler.config import CrawlerConfig
 from crawler.types import Index, ScrapingRequest
 from get_logger import get_logger
-from retry_wrapper import get_retry_wrapper
-
-logger = get_logger("crawler")
-retry = get_retry_wrapper()
 
 
 class Crawler:
@@ -94,7 +91,7 @@ class Crawler:
         paragraphs = (p.get_text().strip() for p in soup.find_all("p"))
         return " \n ".join(p for p in paragraphs if p)
 
-    @retry
+    @retry(stop=stop_after_attempt(3), wait=wait_random_exponential(max=10))
     async def _get(self, url: URL) -> Response:
         """
         Fetches the URL and raises an exception if the status code is not 2xx
@@ -102,10 +99,13 @@ class Crawler:
         We use the TTL cache to avoid visiting the same domain too often
         """
         while self.recently_visited.get(url.netloc):
-            await sleep(0.1)
+            await sleep(0.2)
 
-        response = await self.client.get(url, follow_redirects=True, timeout=10)
+        async with asyncio.timeout(self.config.timeout):
+            response = await self.client.get(url, follow_redirects=True)
+
         response.raise_for_status()
+
         self.recently_visited[url.netloc] = True
         return response
 
@@ -181,17 +181,16 @@ class Crawler:
             )
             .reset_index(drop=False)
             .sort_values(["depth", "created"], ascending=[True, True])
-            .groupby("domain")
-            .first()
+            .drop_duplicates(subset=["domain"], keep="first")
             .head(limit)
         )
         return [
             ScrapingRequest(
-                doc_id=row["doc_id"],
+                doc_id=str(doc_id),
                 url=URL(row["url"]),
                 depth=row["depth"],
             )
-            for _, row in pending_docs.iterrows()
+            for doc_id, row in pending_docs.iterrows()
         ]
 
     def extract_links(self, soup: BeautifulSoup, base_url: URL) -> Iterator[URL]:
@@ -235,6 +234,9 @@ class Crawler:
 
     @staticmethod
     def _get_soup(response: Response) -> BeautifulSoup:
+        if response.text.startswith("<?xml"):
+            return BeautifulSoup("", "lxml")
+
         try:
             return BeautifulSoup(response.text, "lxml")
         except Exception as e:
@@ -250,14 +252,11 @@ class Crawler:
         """
         try:
             response = await self._get(req.url)
-        except (
-            httpx.HTTPError,
-            ssl.SSLError,
-        ):
+        except tenacity.RetryError:
             response = None
 
         if (
-            not response
+            response is None
             or response.headers.get("content-type", "").split(";")[0] != "text/html"
         ):
             self.mark_status(req.doc_id, "failed")
@@ -289,6 +288,7 @@ class Crawler:
         while (
             req := self.fetch_next_doc_batch()
         ) and self.count_docs() < self.config.max_docs:
+            logger.debug(f"Fetching {len(req)} documents")
             results = await asyncio.gather(*[self.crawl(r) for r in req])
             self.save_frontier()
             pbar.update(sum(results))
@@ -306,5 +306,9 @@ class Crawler:
 
 
 if __name__ == "__main__":
+    import logging
+
+    logger = get_logger("crawler", logging.INFO)
+
     c = Crawler()
     asyncio.run(c.run())
