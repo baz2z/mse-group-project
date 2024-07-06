@@ -20,6 +20,10 @@ from get_logger import get_logger
 
 
 class Crawler:
+    """
+    Web crawler class to scrape the web pages
+    """
+
     def __init__(self, run_id: str = "", config: CrawlerConfig = None):
         self.run_id: str = run_id or pd.Timestamp.now().strftime("%Y%m%d%H%M%S")
         self.config: CrawlerConfig = config or CrawlerConfig()
@@ -39,7 +43,17 @@ class Crawler:
             self._client = AsyncClient(headers=self.config.headers)
         return self._client
 
+    @staticmethod
+    def create_id_for_url(url: URL) -> str:
+        """
+        Creates a unique identifier for the URL
+        """
+        return hashlib.md5(str(url).encode()).hexdigest()
+
     def check_allowed_domains(self, domain: bytes) -> bool:
+        """
+        Checks if the domain is in the allowed domains list
+        """
         if not self.config.allowed_domains_pattern:
             return True
 
@@ -50,6 +64,9 @@ class Crawler:
         return False
 
     def check_denied_domains(self, domain: bytes) -> bool:
+        """
+        Checks if the domain is in the forbidden domains list
+        """
         for pattern in self.config.forbidden_domains_pattern:
             if pattern.match(domain.decode()):
                 return False
@@ -58,6 +75,9 @@ class Crawler:
 
     @staticmethod
     def check_url_has_extension(url: URL) -> bool:
+        """
+        Checks if the URL has an extension (e.g., .jpg, .png, .pdf)
+        """
         _, ext = os.path.splitext(url.path)
         if ext and ext != ".html":
             return True
@@ -128,7 +148,7 @@ class Crawler:
         """
         for url in self.config.seed_urls:
             yield {
-                "doc_id": hashlib.md5(str(url).encode()).hexdigest(),
+                "doc_id": self.create_id_for_url(url),
                 "url": url,
                 "domain": url.netloc,
                 "depth": 0,
@@ -146,7 +166,7 @@ class Crawler:
         """
         Adds the URL to the frontier if it does not exist already
         """
-        doc_id = hashlib.md5(str(url).encode()).hexdigest()
+        doc_id = self.create_id_for_url(url)
 
         try:
             entry = self.frontier.loc[doc_id]
@@ -198,6 +218,9 @@ class Crawler:
                 yield url
 
     def extract_url(self, url: str, base_url: URL) -> URL or None:
+        """
+        Extracts the URL from the href attribute of the anchor tag
+        """
         try:
             url = URL(url)
         except httpx.InvalidURL:
@@ -214,9 +237,15 @@ class Crawler:
     def mark_status(
         self, doc_id: str, status: Literal["pending", "completed", "failed"]
     ) -> None:
+        """
+        Marks the status of the document in the frontier
+        """
         self.frontier.loc[doc_id, "status"] = status
 
     def save_data(self, doc_id: str, content: str, index: dict[str, any]) -> None:
+        """
+        Saves the HTML content and index to the respective directories
+        """
         with open(self.config.html_dir / f"{doc_id}.html", "w", encoding="utf-8") as f:
             f.write(content)
 
@@ -224,15 +253,24 @@ class Crawler:
             json.dump(index, f)
 
     def save_frontier(self) -> None:
+        """
+        Saves the frontier to the CSV file
+        """
         self.frontier.to_csv(self.config.ids_dir / f"{self.run_id}.csv")
 
     def create_index(self, response: Response, soup: BeautifulSoup) -> Index:
+        """
+        Creates an index for the document
+        """
         url = str(response.url)
         text = self.extract_text_from_soup(soup)
         return {"url": url, "text": text}
 
     @staticmethod
     def _get_soup(response: Response) -> BeautifulSoup:
+        """
+        Parses the HTML content using BeautifulSoup
+        """
         if response.text.startswith("<?xml"):
             return BeautifulSoup("", "lxml")
 
