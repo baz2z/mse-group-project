@@ -5,10 +5,19 @@ export default async function handler(req, res) {
   
     // Simulate a search operation (e.g., query a database or external API)
     const dummyResults = [
-      `Result for "${query}" 1`,
-      `Result for "${query}" 2`,
-      `Result for "${query}" 3`,
+      {
+        link: 'https://uni-tuebingen.de/',
+        title: 'Example Page 1',
+        abstract: 'This is a summary of example page 1.',
+      },
+      {
+        link: 'https://www.tuebingen-info.de',
+        title: 'Example Page 2',
+        abstract: 'This is a summary of example page 2.',
+      },
+      // Add more results as needed
     ];
+    
   
     res.status(200).json(dummyResults);
   }

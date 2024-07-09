@@ -7,3 +7,25 @@ margin-bottom: 20px; /* Adjust the margin as needed */
 h1, h2 {
   font-family: 'Lustria', serif;
 }
+
+.custom-container {
+    position: fixed;
+    left: 0; 
+    right: 0; 
+}
+
+.search-bar-input{
+    width: 100%;
+    color: #222;
+    background-color: #fff;
+    line-height: 36px;
+    margin: 0;
+    padding: 0;
+    outline: none;
+    border: none;
+    background-image: none;
+    background-color: transparent;
+    -webkit-box-shadow: none;
+    box-shadow: none;
+
+}

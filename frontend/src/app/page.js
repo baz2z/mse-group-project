@@ -1,6 +1,8 @@
 import Image from "next/image";
-import styles from './page-module.css';
+// import styles from './page-module.css';
 import SearchComponent from "@/components/SearchComponent";
+// import page module css:
+import './page-module.css';
 
 import { Lustria } from 'next/font/google';
 const lustria = Lustria({
@@ -10,7 +12,10 @@ const lustria = Lustria({
 
 export default function Home() {
   return (
-    <main style={{ backgroundImage: `url(/tuebingen_neckar_1.jpg)`, backgroundSize: 'cover' }} className="flex min-h-screen flex-col items-center p-24">
+    <>
+    <main style={{ backgroundImage: `url(/tuebingen_neckar_1.jpg)`, backgroundSize: 'cover', filter: 'blur(1px)' }} className="custom-container flex min-h-screen flex-col items-center p-24">
+    </main>
+      <div className="custom-container flex min-h-screen flex-col items-center p-24">
       <header className="text-center">
         <h1 className="text-4xl font-bold">Tübingen</h1>
         <h2 className="text-2xl mt-2" style={{ fontFamily: lustria.style.fontFamily }}>Where wisdom meets charm</h2>
@@ -18,7 +23,7 @@ export default function Home() {
       <div className="mt-8">
           <SearchComponent />
         </div>
-
-    </main>
+      </div>
+      </>
   );
 }
