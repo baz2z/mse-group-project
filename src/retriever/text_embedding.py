@@ -13,47 +13,46 @@ import torch.nn as nn
 sys.path.insert(0, Path(__file__).resolve().parents[1])
 
 
-class TextEmbedding():
-    
-    def __init__(self, corpus=None, output_dim=8):
+class BagOfWordsTokenizer():
+    """
+    A class to create bag of words tokens from a given corpus.
+    """
+    def __init__(self, corpus):
         """
-        A class to create text embeddings.
-        
+        Init tokenizer with given corpus and load stemmer and stopwords.
+                
         Args:
             corpus (dict): A dictionary where the keys are document IDs and the values are the
-                corresponding documents (strings):
-                
-                Example:
-                    {
-                        'doc1': 'This is the first document.',
-                        'doc2': 'This is the second document.'
-                    }
-
+                corresponding documents.
         """
         self.corpus = corpus
         
         self.stemmer = PorterStemmer()
         self.stopwords = set(stopwords.words('english'))
-        
-        # Tiny_BERT embeddings 
-        self.tokenizer = BertTokenizer.from_pretrained('google/bert_uncased_L-4_H-256_A-4')
-        self.model = BertModel.from_pretrained('google/bert_uncased_L-4_H-256_A-4')
-        self.dimension_reducer = nn.Linear(self.model.config.hidden_size, output_dim)
 
-    
-    def get_doc_ids(self):
-        return self.corpus.keys()
-    
-    def get_corpus(self):
-        preprocessed_docs = []
-        for doc in tqdm.tqdm(self.corpus.values(), desc="Processing documents"):
-            preprocessed_doc = self.bag_of_words(doc).split(" ")
-            preprocessed_docs.append(preprocessed_doc)
-        return preprocessed_docs
-    
-    def bag_of_words(self, text):
+    @property
+    def doc_ids(self):
         """
-        Extracts bag of words from the given text.
+        Ordered document IDs in the corpus.
+        """
+        return list(self.corpus.keys())
+    
+    def tokenize_corpus(self):
+        """
+        Tokenizes the corpus by extracting bag of words from each document.
+
+        Returns:
+            list of list of strings: Tokenized documents.
+        """
+        tokenized_docs = []
+        for doc in tqdm.tqdm(self.corpus.values(), desc="Tokenize documents"):
+            tokenized_doc = self.tokenize(doc)
+            tokenized_docs.append(tokenized_doc)
+        return tokenized_docs
+    
+    def tokenize(self, text):
+        """
+        Extracts bag of words tokens from the given text.
 
         Args:
             text (str): The text from which to extract bag of words.
@@ -68,21 +67,33 @@ class TextEmbedding():
         tokens = [self.stemmer.stem(token) for token in tokens
                   if token not in self.stopwords]
         
-        return ' '.join(tokens)
+        return tokens
+
+class BertEmbedding():
     
-    # word2vec embeddings
-    def vectorize(self, text):
+    def __init__(self, corpus=None, output_dim=8):
         """
-        Vectorizes the given text using word embeddings.
-
+        A class to create text embeddings.
+        
         Args:
-            text (str): The text to vectorize.
-
-        Returns:
-            np.array: The vectorized representation of the text.
+            corpus (dict): A dictionary where the keys are document IDs and the values are the
+                corresponding documents.
         """
-        pass # TODO: Immplement
-
+        self.corpus = corpus
+        
+        self.stopwords = set(stopwords.words('english'))
+        
+        # Tiny_BERT embeddings 
+        self.tokenizer = BertTokenizer.from_pretrained('google/bert_uncased_L-4_H-256_A-4')
+        self.model = BertModel.from_pretrained('google/bert_uncased_L-4_H-256_A-4')
+        self.dimension_reducer = nn.Linear(self.model.config.hidden_size, output_dim)
+        
+    @property
+    def doc_ids(self):
+        """
+        Ordered document IDs in the corpus.
+        """
+        return list(self.corpus.keys())
 
     def get_single_bert_embedding(self, text, Nq=16):
         """
@@ -180,18 +191,3 @@ class TextEmbedding():
         tokens = text.split()
         tokens = [token for token in tokens if token not in self.stopwords]
         return ' '.join(tokens)
-
-    
-    
-    # ? PageRank calculations somewhere else I guess, use adjacentcy matrix?
-    def incoming_pages(self, doc_id):
-        """
-        Returns the incoming pages of the given document.
-
-        Args:
-            doc_id (str): The document ID for which to find incoming pages.
-
-        Returns:
-            list: List of incoming pages.
-        """
-        pass # TODO: Implement somewhere eles, does not fit in here.

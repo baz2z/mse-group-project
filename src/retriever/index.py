@@ -11,7 +11,7 @@ from scipy.sparse import csr_matrix
 sys.path.insert(0, Path(__file__).resolve().parents[1])
 
 # internal imports
-from text_embedding import TextEmbedding
+from text_embedding import BagOfWordsTokenizer, BertEmbedding
 from in_out import convert_csr_to_dict
 import os
 
@@ -34,80 +34,42 @@ class Index():
         """
         
         self.corpus = corpus
-        self.text_embedding = TextEmbedding(corpus)
+        self.text_embedding = BertEmbedding(corpus)
         
-        self.docs_total = len(corpus)
-        self.doc_ids = self.text_embedding.get_doc_ids()
+        # self.docs_total = len(corpus)
+        # self.doc_ids = self.text_embedding.get_doc_ids()
         
-        self.tf_vectorizer = CountVectorizer()
-        self.idf_transformer = TfidfTransformer(use_idf=True, smooth_idf=True)
-        self.tfidf_tranformer = TfidfTransformer(smooth_idf=True)
+        # self.tf_vectorizer = CountVectorizer()
+        # self.idf_transformer = TfidfTransformer(use_idf=True, smooth_idf=True)
+        # self.tfidf_tranformer = TfidfTransformer(smooth_idf=True)
 
-        # self.bert_embeddings = self.text_embedding.get_bert_embeddings()
+        self.bert_embeddings = self.text_embedding.get_bert_embeddings()
 
 
     def initialize_index(self):
         
         print("Initializing index...")
         
-        doc_ids = list(self.doc_ids)
+        doc_ids = self.text_embedding.doc_ids
         
-        tfs, token_names = self.tf(self.corpus)
-        idfs = self.idf(tfs, token_names)
-        tfidfs = self.tfidf(tfs)
-        doc_lengths = self.doc_lens(tfs)
+        # tfs, token_names = self.tf(self.corpus)
+        # idfs = self.idf(tfs, token_names)
+        # tfidfs = self.tfidf(tfs)
+        # doc_lengths = self.doc_lens(tfs)
 
-        # bert_embeddings = self.bert_embeddings
+        bert_embeddings = self.bert_embeddings
         
         self.index_data = {
             'doc_ids': doc_ids,
-            'doc_lengths': doc_lengths,
-            'token_names': token_names,
-            'tfs': tfs,
+            # 'doc_lengths': doc_lengths,
+            # 'token_names': token_names,
+            # 'tfs': tfs,
             # 'idfs': idfs,
-            'tfidfs': tfidfs,
-            # 'bert_embeddings': bert_embeddings,
+            # 'tfidfs': tfidfs,
+            'bert_embeddings': bert_embeddings,
         }
 
         print("Index created successfully.")
-        
-    def export_index_numpy(self, index_name, num_splits):
-        """
-        Exports the index to the specified file path using numpy.
-
-        Args:
-            index_name (str): Name of the index to export. 
-        """
-        tfs = self.index_data.pop('tfs')
-        tfidfs = self.index_data.pop('tfidfs')
-        
-        path_desc = Path("dat", f"{index_name}_desc.npz")
-        np.savez_compressed(path_desc, **self.index_data)
-
-        start_idx = 0
-        num_docs = tfs.shape[0]
-        split_size = num_docs // num_splits
-        sizes = [split_size] * num_splits
-        leftover = num_docs % num_splits
-        if leftover > 0:
-            sizes[-1] += leftover
-        
-        def export_split_numpy(index_name, split_tfs, split_tfidfs, start_idx, end_idx):
-            path_tfs = Path("dat", f"{index_name}_tfs/{start_idx}_{end_idx}.npy")
-            path_tfidfs = Path("dat", f"{index_name}_tfidfs/{start_idx}_{end_idx}.npy")
-            os.makedirs(os.path.dirname(path_tfs), exist_ok=True)
-            os.makedirs(os.path.dirname(path_tfidfs), exist_ok=True)
-            np.save(path_tfs, split_tfs)
-            np.save(path_tfidfs, split_tfidfs)
-        
-        for size in sizes:
-            end_idx = start_idx + size
-            split_tfs = tfs[start_idx:end_idx].toarray()
-            split_tfidfs = tfidfs[start_idx:end_idx].toarray()
-            export_split_numpy(index_name, split_tfs, split_tfidfs, start_idx, end_idx)
-            start_idx = end_idx
-            
-        print(f"Index exported.")
     
     def tf(self, docs):
         """
@@ -206,15 +168,15 @@ class Index():
             
             for doc_id, embedding in zip(doc_ids, bert_embeddings):
                 doc_path = base_path / str(doc_id)
-                doc_path.mkdir(parents=True, exist_ok=True)  # Create a directory for each doc_id
-                np.save(doc_path / "bert_embedding.npy", embedding)
+                # doc_path.mkdir(parents=True, exist_ok=True)  # Create a directory for each doc_id
+                np.save(f"{doc_path}_bert.npy", embedding)
 
 
-        path = Path("dat", f"{index_name}.json")
-        dump_to_json(path, self.index_data)
+        # path = Path("dat", f"{index_name}.json")
+        # dump_to_json(path, self.index_data)
         
-        path_folders = Path("dat/index")
+        path_folders = Path(f"dat/{index_name}")
         export_to_folder(path_folders, self.index_data)
 
-        print(f"Index exported to {path}.")
+        print(f"Index exported to {path_folders}.")
         

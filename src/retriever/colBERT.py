@@ -8,8 +8,7 @@ from pathlib import Path
 sys.path.insert(0, Path(__file__).resolve().parents[1])
 
 # internal imports
-from text_embedding import TextEmbedding
-from in_out import load_csr_matrix
+from text_embedding import BertEmbedding
 
 
 class colBERT():
@@ -26,7 +25,7 @@ class colBERT():
             path (str): The file path to the index.   
         """
         self.ranker = 'colBERT'
-        self.text_embedding = TextEmbedding()
+        self.text_embedding = BertEmbedding()
        
         # Initialize index
         self.index_path = index_path        
