@@ -7,13 +7,14 @@ from nltk.stem import PorterStemmer
 
 from transformers import BertTokenizer, BertModel
 import torch
+import torch.nn as nn
 
 sys.path.insert(0, Path(__file__).resolve().parents[1])
 
 
 class TextEmbedding():
     
-    def __init__(self, corpus=None):
+    def __init__(self, corpus=None, output_dim=8):
         """
         A class to create text embeddings.
         
@@ -36,6 +37,8 @@ class TextEmbedding():
         # Tiny_BERT embeddings 
         self.tokenizer = BertTokenizer.from_pretrained('google/bert_uncased_L-4_H-256_A-4')
         self.model = BertModel.from_pretrained('google/bert_uncased_L-4_H-256_A-4')
+        self.dimension_reducer = nn.Linear(self.model.config.hidden_size, output_dim)
+
     
     def get_doc_ids(self):
         # print(self.corpus.keys())
@@ -109,10 +112,13 @@ class TextEmbedding():
         outputs = self.model(**inputs)
         last_hidden_states = outputs.last_hidden_state
 
-        # Normalize the embeddings
-        norm = torch.norm(last_hidden_states, p=2, dim=2, keepdim=True)
-        normalized_single_embedding = last_hidden_states / norm
-        return normalized_single_embedding.tolist()
+        # Apply the linear layer to reduce dimension size before normalization
+        reduced_dimension_embedding = self.dimension_reducer(last_hidden_states)
+
+        # Normalize the reduced embeddings
+        norm = torch.norm(reduced_dimension_embedding, p=2, dim=2, keepdim=True)
+        normalized_reduced_embedding = reduced_dimension_embedding / norm
+        return normalized_reduced_embedding.tolist()
 
 
     def get_bert_embeddings(self):
@@ -138,7 +144,9 @@ class TextEmbedding():
                 inputs = self.tokenizer(chunk, return_tensors="pt", padding=True, truncation=True)
                 outputs = self.model(**inputs)
                 last_hidden_states = outputs.last_hidden_state
-                chunk_embeddings.append(last_hidden_states)
+                # Apply the linear layer to reduce dimension size
+                reduced_dimension_embedding = self.dimension_reducer(last_hidden_states)
+                chunk_embeddings.append(reduced_dimension_embedding)
             
             # Concatenate embeddings from all chunks
             concatenated_embeddings = torch.cat(chunk_embeddings, dim=1)
