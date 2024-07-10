@@ -193,9 +193,28 @@ class Index():
                     data, f, indent=4, 
                     default=convert_csr_to_dict
                     )
-          
+
+
+        def export_to_folder(base_path, index_data):
+            # Ensure the base directory exists
+            if not base_path.exists():
+                base_path.mkdir(parents=True, exist_ok=True)
+            
+            # Assuming 'doc_ids' and 'bert_embeddings' are keys in index_data
+            doc_ids = index_data.get('doc_ids', [])
+            bert_embeddings = index_data.get('bert_embeddings', [])
+            
+            for doc_id, embedding in zip(doc_ids, bert_embeddings):
+                doc_path = base_path / str(doc_id)
+                doc_path.mkdir(parents=True, exist_ok=True)  # Create a directory for each doc_id
+                np.save(doc_path / "bert_embedding.npy", embedding)
+
+
         path = Path("dat", f"{index_name}.json")
         dump_to_json(path, self.index_data)
         
+        path_folders = Path("dat/index")
+        export_to_folder(path_folders, self.index_data)
+
         print(f"Index exported to {path}.")
         
