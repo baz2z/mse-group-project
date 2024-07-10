@@ -20,7 +20,7 @@ class BM25():
     computes relevance scores for documents given a query based on the tfidf approach.
     """
     
-    def __init__(self, index_path):
+    def __init__(self, index_path=None, index_name=None):
         """
         Initialize BM25 on given pre computed index.
         
@@ -31,8 +31,9 @@ class BM25():
         self.text_embedding = TextEmbedding()
        
         # Initialize index
-        self.index_path = index_path        
-        self.initialize_index()
+        self.index_path = index_path 
+        self.index_name = index_name       
+        self.initialize_index_numpy()
         
         # Initialize BM25 parameters
         self.N = len(self.doc_ids)
@@ -53,12 +54,47 @@ class BM25():
         self.doc_ids = index_data['doc_ids']
         self.token_names = index_data['token_names']
         self.doc_lengths = np.array(index_data['doc_lengths'])
-        print("Loading tf, tfidf matrix from index")
         self.tf = load_csr_matrix(index_data['tfs'])
-        print("tf loaded")
         # self.idf = index_data['idfs']
         self.tfidf = load_csr_matrix(index_data['tfidfs'])
-        print("tfidf loaded")
+
+    def initialize_index_numpy(self):
+        """
+        Load the index from the numpy files.
+        
+        Loads the index desc from the npz file given the index name.
+        Yields tf and tfidf matrices after loading their respective npy file given
+        the index name.
+        """
+        index_desc_path = Path("dat", f"{self.index_name}_desc.npz")
+        index_desc = np.load(index_desc_path, allow_pickle=True)
+        self.doc_ids = index_desc['doc_ids']
+        self.token_names = index_desc['token_names']
+        self.doc_lengths = np.array(index_desc['doc_lengths'])
+        
+        self.index_tf_dir = Path("dat", f"{self.index_name}_tfs")        
+        self.index_tfidf_dir = Path("dat", f"{self.index_name}_tfidfs")
+        
+    def load_matrix(self):
+        """
+        Generator to loop through all npy files inside the index_tf_dir and index_tfidf_dir.
+        Yields a pair of tf and tfidf arrays.
+        """
+        if not self.index_tf_dir.exists():
+            raise FileNotFoundError(f"Folder not found: {self.index_tf_dir}")
+        
+        for tf_file_path in self.index_tf_dir.glob('*.npy'):
+            tfidf_file_name = tf_file_path.name.replace('_tfs', '_tfidfs')
+            tfidf_file_path = self.index_tfidf_dir / tfidf_file_name
+            indices = tfidf_file_name.split('.')[0].split('_')
+            
+            if tfidf_file_path.exists():
+                tf_matrix = np.load(tf_file_path)
+                tfidf_matrix = np.load(tfidf_file_path)
+                
+                yield (indices, tf_matrix, tfidf_matrix)
+        
+        
 
     def vectorize_query(self, query):
         """
@@ -119,7 +155,7 @@ class BM25():
             list: A list of tuples, where each tuple contains a document ID and its relevance score.
         """
         query_vector = self.vectorize_query(query)
-        scores = self.compute_scores_fast_batch(query_vector)            
+        scores = self.compute_scores_numpy(query_vector)            
         print("After scoring")
         ranked_documents = self.get_top_k(scores, top_k)
 
@@ -166,7 +202,7 @@ class BM25():
         print("sum")
         return scores
     
-    def compute_scores_fast_batch(self, query_vector, batch_size=100):
+    def compute_scores_fast_batch(self, query_vector, batch_size=1000):
         """
         Compute BM25 scores for each document given a query vector using batching to reduce memory allocation.
         
@@ -201,6 +237,22 @@ class BM25():
             scores_batch = term_scores_batch.sum(axis=1).flatten()
             scores[start_idx:end_idx] = scores_batch
         
+        return scores
+    
+    def compute_scores_numpy(self, query_vector):
+        scores = np.zeros(len(self.doc_ids))
+        
+        for (indices, tf_matrix, tfidf_matrix) in self.load_matrix():
+            start_idx, end_idx = int(indices[0]), int(indices[1])
+            print("Start idx: %d, End idx: %d" % (start_idx, end_idx))
+            doc_length_norm = self.k * (1 - self.b + self.b * (self.doc_lengths[start_idx:end_idx] / self.avg_doc_len))
+            
+            term_scores = tfidf_matrix * query_vector
+            term_scores_norm = (term_scores * (self.k + 1)) / (tf_matrix + doc_length_norm[:, None])
+            
+            scores_batch = term_scores_norm.sum(axis=1).flatten()
+            scores[start_idx:end_idx] = scores_batch
+            
         return scores
     
     def get_top_k(self, scores, top_k):

@@ -1,5 +1,6 @@
 import re
 import sys
+import tqdm
 
 from pathlib import Path
 from nltk.corpus import stopwords
@@ -41,8 +42,14 @@ class TextEmbedding():
 
     
     def get_doc_ids(self):
-        # print(self.corpus.keys())
         return self.corpus.keys()
+    
+    def get_corpus(self):
+        preprocessed_docs = []
+        for doc in tqdm.tqdm(self.corpus.values(), desc="Processing documents"):
+            preprocessed_doc = self.bag_of_words(doc).split(" ")
+            preprocessed_docs.append(preprocessed_doc)
+        return preprocessed_docs
     
     def bag_of_words(self, text):
         """

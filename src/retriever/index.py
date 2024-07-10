@@ -13,6 +13,7 @@ sys.path.insert(0, Path(__file__).resolve().parents[1])
 # internal imports
 from text_embedding import TextEmbedding
 from in_out import convert_csr_to_dict
+import os
 
 class Index():
     """
@@ -56,19 +57,57 @@ class Index():
         tfidfs = self.tfidf(tfs)
         doc_lengths = self.doc_lens(tfs)
 
-        bert_embeddings = self.bert_embeddings
+        # bert_embeddings = self.bert_embeddings
         
         self.index_data = {
             'doc_ids': doc_ids,
             'doc_lengths': doc_lengths,
             'token_names': token_names,
             'tfs': tfs,
-            'idfs': idfs,
+            # 'idfs': idfs,
             'tfidfs': tfidfs,
-            'bert_embeddings': bert_embeddings,
+            # 'bert_embeddings': bert_embeddings,
         }
 
         print("Index created successfully.")
+        
+    def export_index_numpy(self, index_name, num_splits):
+        """
+        Exports the index to the specified file path using numpy.
+
+        Args:
+            index_name (str): Name of the index to export. 
+        """
+        tfs = self.index_data.pop('tfs')
+        tfidfs = self.index_data.pop('tfidfs')
+        
+        path_desc = Path("dat", f"{index_name}_desc.npz")
+        np.savez_compressed(path_desc, **self.index_data)
+
+        start_idx = 0
+        num_docs = tfs.shape[0]
+        split_size = num_docs // num_splits
+        sizes = [split_size] * num_splits
+        leftover = num_docs % num_splits
+        if leftover > 0:
+            sizes[-1] += leftover
+        
+        def export_split_numpy(index_name, split_tfs, split_tfidfs, start_idx, end_idx):
+            path_tfs = Path("dat", f"{index_name}_tfs/{start_idx}_{end_idx}.npy")
+            path_tfidfs = Path("dat", f"{index_name}_tfidfs/{start_idx}_{end_idx}.npy")
+            os.makedirs(os.path.dirname(path_tfs), exist_ok=True)
+            os.makedirs(os.path.dirname(path_tfidfs), exist_ok=True)
+            np.save(path_tfs, split_tfs)
+            np.save(path_tfidfs, split_tfidfs)
+        
+        for size in sizes:
+            end_idx = start_idx + size
+            split_tfs = tfs[start_idx:end_idx].toarray()
+            split_tfidfs = tfidfs[start_idx:end_idx].toarray()
+            export_split_numpy(index_name, split_tfs, split_tfidfs, start_idx, end_idx)
+            start_idx = end_idx
+            
+        print(f"Index exported.")
     
     def tf(self, docs):
         """
