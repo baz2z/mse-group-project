@@ -38,7 +38,7 @@ class TextEmbedding():
         self.model = BertModel.from_pretrained('google/bert_uncased_L-4_H-256_A-4')
     
     def get_doc_ids(self):
-        print(self.corpus.keys())
+        # print(self.corpus.keys())
         return self.corpus.keys()
     
     def bag_of_words(self, text):

@@ -5,17 +5,38 @@ import csv
 from scipy.sparse import csr_matrix
 
 
-def load_corpus_from_json_files(directory_path):
+def load_corpus_from_json_files(directory_path, k=1000):
     corpus = {}
+    idx = 0
     for filename in os.listdir(directory_path):
         if filename.endswith(".json"):
+            if idx > k:
+                return corpus
             file_path = os.path.join(directory_path, filename)
             with open(file_path, 'r') as file:
                 data = json.load(file)
-                # Assuming the text content you want is under a key named 'text'.
-                # Adjust the key according to the actual structure of your JSON files.
                 corpus[filename[:-5]] = data['text']
+            idx += 1
+        if idx % 5000 == 0:
+            print(f"Processing jsons - n={idx}")
     return corpus
+
+
+def load_url_from_json_files(directory_path, k=1000):
+    urls = {}
+    idx = 0
+    for filename in os.listdir(directory_path):
+        if filename.endswith(".json"):
+            if idx > k:
+                return urls
+            file_path = os.path.join(directory_path, filename)
+            with open(file_path, 'r') as file:
+                data = json.load(file)
+                urls[filename[:-5]] = data['url']
+            idx += 1
+        if idx % 5000 == 0:
+            print(f"Processing jsons - n={idx}")
+    return urls
 
 
 def load_url_mapping_from_csv(csv_file_path):

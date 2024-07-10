@@ -3,7 +3,9 @@ import math
 import json
 import sys
 
+from tqdm import tqdm
 from pathlib import Path
+from scipy.sparse import csr_matrix
 
 sys.path.insert(0, Path(__file__).resolve().parents[1])
 
@@ -38,6 +40,8 @@ class BM25():
         
         self.k = 1.5  # default k in range [1.2, 2.0]
         self.b = 0.75 # default value for b
+        
+        print("BM25 initialized")
 
     def initialize_index(self):
         """
@@ -47,11 +51,14 @@ class BM25():
             index_data = json.load(file)
         
         self.doc_ids = index_data['doc_ids']
-        self.doc_lengths = index_data['doc_lengths']
         self.token_names = index_data['token_names']
+        self.doc_lengths = np.array(index_data['doc_lengths'])
+        print("Loading tf, tfidf matrix from index")
         self.tf = load_csr_matrix(index_data['tfs'])
-        self.idf = index_data['idfs']
+        print("tf loaded")
+        # self.idf = index_data['idfs']
         self.tfidf = load_csr_matrix(index_data['tfidfs'])
+        print("tfidf loaded")
 
     def vectorize_query(self, query):
         """
@@ -99,7 +106,7 @@ class BM25():
         ]
     
     # TODO: vectorize for better performance
-    def rank(self, query):
+    def rank(self, query, top_k=100):
         """
         BM25 ranking algorithm. 
         
@@ -112,9 +119,25 @@ class BM25():
             list: A list of tuples, where each tuple contains a document ID and its relevance score.
         """
         query_vector = self.vectorize_query(query)
+        scores = self.compute_scores_fast_batch(query_vector)            
+        print("After scoring")
+        ranked_documents = self.get_top_k(scores, top_k)
+
+        return ranked_documents
+    
+    def compute_scores(self, query_vector):
+        """
+        Compute BM25 scores for each document given a query vector.
+        
+        Args:
+            query_vector (numpy.ndarray): The query vector.
+        
+        Returns:
+            numpy.ndarray: BM25 scores for each document.
+        """
         scores = np.zeros(len(self.doc_ids))
         
-        for i, doc_id in enumerate(self.doc_ids):
+        for i, doc_id in tqdm(enumerate(self.doc_ids)):
             doc_length = self.doc_lengths[i]
             for j, term in enumerate(self.token_names):
                 if query_vector[j] > 0:
@@ -123,11 +146,78 @@ class BM25():
                     term_score = idf * (tf_qi_D * (self.k+1)) / \
                         (tf_qi_D + self.k * (1 - self.b + self.b * (doc_length / self.avg_doc_len)))
                     scores[i] += term_score
-                    
-        ranked_documents = sorted(
+        return scores
+    
+    def compute_scores_fast(self, query_vector):
+        
+        query_vector_sparse = csr_matrix(query_vector)
+        
+        # Pre-compute document length normalization factor -> array of size len(docs)
+        doc_length_norm = self.k * (1 - self.b + self.b * (self.doc_lengths / self.avg_doc_len))
+        
+        print("before tfidf compute")
+        # Compute term scores using vectorized operations
+        term_scores = self.tfidf.multiply(query_vector_sparse)
+        print("after tfidf compute")
+        term_scores = term_scores.multiply(self.k + 1) / (self.tf + doc_length_norm[:, None])
+        print("normalized term scores")
+        # Sum scores across terms for each document
+        scores = term_scores.sum(axis=1).A1
+        print("sum")
+        return scores
+    
+    def compute_scores_fast_batch(self, query_vector, batch_size=100):
+        """
+        Compute BM25 scores for each document given a query vector using batching to reduce memory allocation.
+        
+        Args:
+            query_vector (numpy.ndarray): The query vector.
+            batch_size (int): The number of documents to process in each batch.
+        
+        Returns:
+            numpy.ndarray: BM25 scores for each document.
+        """
+        query_vector_sparse = query_vector
+        scores = np.zeros(len(self.doc_ids))
+        
+        num_batches = math.ceil(len(self.doc_ids) / batch_size)
+        
+        print("Num batches: %d" % num_batches)
+        for batch_idx in tqdm(range(num_batches), desc="Computing scores"):
+            start_idx = batch_idx * batch_size
+            end_idx = min((batch_idx + 1) * batch_size, len(self.doc_ids))
+            
+            tfidf_batch = self.tfidf[start_idx:end_idx].toarray()
+            tf_batch = self.tf[start_idx:end_idx].toarray()
+            print("tfidf_batch shape: ", tfidf_batch.shape)
+            print("tf_batch shape: ", tf_batch.shape)
+            print("query_vector_sparse shape: ", query_vector_sparse.shape)
+            
+            term_scores_batch = tfidf_batch * query_vector_sparse
+            doc_length_norm_batch = self.k * (1 - self.b + self.b * (self.doc_lengths[start_idx:end_idx] / self.avg_doc_len))
+            
+            term_scores_batch = (term_scores_batch * (self.k + 1)) / (tf_batch + doc_length_norm_batch[:, None])
+            
+            scores_batch = term_scores_batch.sum(axis=1).flatten()
+            scores[start_idx:end_idx] = scores_batch
+        
+        return scores
+    
+    def get_top_k(self, scores, top_k):
+        """
+        Returns the top k documents based on the given scores.
+
+        Args:
+            scores (List[float]): The scores of the documents.
+            top_k (int): The number of top documents to return.
+
+        Returns:
+            List[Tuple[str, float]]: A list of tuples containing the document IDs and their scores,
+                                     sorted in descending order of scores.
+
+        """
+        return sorted(
             [(self.doc_ids[idx], score) for idx, score in enumerate(scores)],
             key=lambda x: x[1], reverse=True
-        )
-
-        return ranked_documents
+        )[:top_k]
     

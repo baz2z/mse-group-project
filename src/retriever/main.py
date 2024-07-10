@@ -8,7 +8,7 @@ print(Path(__file__).resolve().parents[1])
 from index import Index
 from bm25 import BM25
 from colBERT import colBERT
-from in_out import load_corpus_from_json_files, load_url_mapping_from_csv
+from in_out import load_corpus_from_json_files, load_url_mapping_from_csv, load_url_from_json_files
 
 def dummy_usage():
     
@@ -73,7 +73,8 @@ def main():
     url_mapping = load_url_mapping_from_csv(mapping_path)
     
     # ! Set exist_ok to False if corpus has changed
-    path_to_index = create_index(corpus_tue, "index_tue_v2", exist_ok=True)
+    index_name = "index_tue_v0"
+    path_to_index = create_index(corpus_tue, index_name, exist_ok=True)
     
     query = 'Wo kann man gut Wein trinken in Tübingen?'
     # colBERT_ranker = colBERT(path_to_index)
@@ -81,12 +82,38 @@ def main():
     ranked_docs = bm25.rank(query=query)
     
     top5 = ranked_docs[:5]
-    print("Top 5 documents for 'gastronomie in tübingen restaurant':")
+    print(f"Top 5 documents for query: {query}")
     for doc_id, score in top5:
         print(f"Document ID: {doc_id}, Score: {score:.4f}, URL: {url_mapping.get(doc_id)}")
-        
-        
+
+
+def main_extended_index():
+    
+    k = 15000
+    directory_path = "dat/index/"
+    corpus_tue = load_corpus_from_json_files(directory_path, k)
+    url_mapping = load_url_from_json_files(directory_path, k)
+    
+    index_name = f"index_tue_extended_{k}"
+    path_to_index = create_index(corpus_tue, index_name, exist_ok=True)
+    
+    query = 'brecht hölderlin'
+    # colBERT_ranker = colBERT(path_to_index)
+    bm25 = BM25(path_to_index)
+    ranked_docs = bm25.rank(query=query)
+    
+    top5 = ranked_docs[:5]
+    print(f"Top 5 documents for query: {query}")
+    for doc_id, score in top5:
+        print(f"Document ID: {doc_id}, Score: {score:.4f}, URL: {url_mapping.get(doc_id)}")
 
 if __name__ == "__main__":
     # dummy_usage()
-    main()
+    # main()
+    main_extended_index()
+    
+    
+    # TODO:
+    # - save sparse matrix as npy files inside npz file
+    # - tf values are int16 np arrays
+    # - tfidf values are float32 np arrays

@@ -42,7 +42,7 @@ class Index():
         self.idf_transformer = TfidfTransformer(use_idf=True, smooth_idf=True)
         self.tfidf_tranformer = TfidfTransformer(smooth_idf=True)
 
-        self.bert_embeddings = self.text_embedding.get_bert_embeddings()
+        # self.bert_embeddings = self.text_embedding.get_bert_embeddings()
 
 
     def initialize_index(self):
