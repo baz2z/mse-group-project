@@ -12,7 +12,6 @@ from bm25 import BM25
 from colBERT import colBERT
 from in_out import load_corpus_from_json_files, load_url_mapping_from_csv, load_url_from_json_files
 
-
 def create_index(corpus, index_name, exist_ok=True):
     """
     Create an index for the given corpus and export it to a JSON file.
@@ -72,24 +71,27 @@ def pre_compute_bm25(embed, index_name, k, exist_ok=True):
 def main_bert():   
     
      # Load k crawled documents 
-    k = 10
+    k = 100
     directory_path = "dat/crawled_docs/"
     corpus_tue = load_corpus_from_json_files(directory_path, k)
     # url_mapping = load_url_from_json_files(directory_path, k)
-
+    index_exists = True
     index_name = "index_bert"
-    path_to_index = create_index(corpus_tue, index_name, exist_ok=False)
-    
+    if not index_exists:
+        path_to_index = create_index(corpus_tue, index_name, exist_ok=False)
+    else:
+        path_to_index = Path("dat", f"{index_name}.json")
+
     # TODO: adpat colBERT init_index to new folder structure
 
-    query = 'hölderlin'
+    query = 'sigillum'
     colBERT_ranker = colBERT(path_to_index)
     ranked_docs = colBERT_ranker.rank(query=query)
     
     top5 = ranked_docs[:5]
     print(f"Top 5 documents for query: {query}")
     for doc_id, score in top5:
-        print(f"Document ID: {doc_id}, Score: {score:.4f}, URL: {url_mapping.get(doc_id)}")
+        print(f"Document ID: {doc_id}, Score: {score:.4f}")#, URL: {url_mapping.get(doc_id)}")
 
 
 def main_bm25():

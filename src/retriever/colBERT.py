@@ -2,6 +2,7 @@ import numpy as np
 import math
 import json
 import sys
+import os
 
 from pathlib import Path
 
@@ -34,13 +35,30 @@ class colBERT():
 
     def initialize_index(self):
         """
-        Initializes the index by loading the necessary data from the index json file.
+        Initializes the index by loading the necessary data from the data/index_bert folder.
+        Each subfolder represents a document ID, and each contains a 'bert_embeddings.npy' file.
         """
-        with open(self.index_path, 'r') as file:
-            index_data = json.load(file)
+        self.doc_ids = []
+        self.bert_embeddings = []
+
+        # Path to the folder containing the index data
+        index_folder_path = 'dat/index_bert'
         
-        self.doc_ids = index_data['doc_ids']
-        self.bert_embedding = index_data['bert_embeddings']
+        # List all directories in the index folder
+        for doc_id in os.listdir(index_folder_path):
+            doc_path = os.path.join(index_folder_path, doc_id)
+            
+            # Check if the path is indeed a directory
+            if os.path.isdir(doc_path):
+                self.doc_ids.append(doc_id)
+                
+                # Path to the numpy array file
+                embeddings_file_path = os.path.join(doc_path, 'bert_embedding.npy')
+                print(f"Searching for file at: {os.path.abspath(embeddings_file_path)}")
+
+                
+                # Load the numpy array and append it to the bert_embeddings list
+                self.bert_embeddings.append(np.load(embeddings_file_path))
 
     def vectorize_query(self, query):
         """
@@ -75,7 +93,7 @@ class colBERT():
     
     def compute_scores(self, query_vector):
         scores = []
-        for doc_id, doc_embedding in self.bert_embedding.items():
+        for doc_id, doc_embedding in zip(self.doc_ids, self.bert_embeddings):
             doc_score = 0
             for query_token_embedding in query_vector[0]:
                 token_similarities = []
