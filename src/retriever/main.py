@@ -28,9 +28,9 @@ def create_index(corpus, index_name, exist_ok=True):
 
     """
     # TODO: adapt to new folder structure for bert embeddings
-    path_to_index: Path = Path("dat", f"{index_name}.json")
+    path_to_index: Path = Path("dat", f"{index_name}")
     if exist_ok and path_to_index.exists():
-        print(f"Index file '{index_name}.json' found. Using pre-computed index")
+        print(f"Index file '{index_name}' found. Using pre-computed index")
         return path_to_index
     
     index = Index(corpus)
@@ -71,20 +71,20 @@ def pre_compute_bm25(embed, index_name, k, exist_ok=True):
 def main_bert():   
     
      # Load k crawled documents 
-    k = 100
-    directory_path = "dat/crawled_docs/"
+    k = 200
+    directory_path = "dat/crawled_test/"
     corpus_tue = load_corpus_from_json_files(directory_path, k)
     # url_mapping = load_url_from_json_files(directory_path, k)
-    index_exists = True
-    index_name = "index_bert"
+    index_exists = False
+    index_name = "test_index_bert"
     if not index_exists:
         path_to_index = create_index(corpus_tue, index_name, exist_ok=False)
     else:
-        path_to_index = Path("dat", f"{index_name}.json")
+        path_to_index = Path("dat", f"{index_name}")
 
     # TODO: adpat colBERT init_index to new folder structure
 
-    query = 'sigillum'
+    query = 'frankfurt'
     colBERT_ranker = colBERT(path_to_index)
     ranked_docs = colBERT_ranker.rank(query=query)
     

@@ -42,7 +42,7 @@ class colBERT():
         self.bert_embeddings = []
 
         # Path to the folder containing the index data
-        index_folder_path = 'dat/index_bert'
+        index_folder_path = self.index_path
         
         # List all directories in the index folder
         for doc_id in os.listdir(index_folder_path):
@@ -102,6 +102,7 @@ class colBERT():
                 similarities = [np.dot(query_token_embedding, doc_token_embedding) / 
                                (np.linalg.norm(query_token_embedding) * np.linalg.norm(doc_token_embedding)) 
                                 for doc_token_embedding in doc_token_embeddings]  # Iterate through embeddings for each token
+                print(doc_id, query_token_embedding, max(similarities))
                 token_similarities.append(max(similarities))  # Find the max similarity for this token
                 doc_score += sum(token_similarities)  # Sum of max similarities for all query tokens
             scores.append((doc_id, doc_score))
