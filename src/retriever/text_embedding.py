@@ -85,12 +85,12 @@ class BertEmbedding():
         self.stopwords = set(stopwords.words('english'))
         
         # deberta
-        self.tokenizer = DebertaV2Tokenizer.from_pretrained('microsoft/deberta-v3-small')
-        self.model = DebertaV2Model.from_pretrained('microsoft/deberta-v3-small')
+        # self.tokenizer = DebertaV2Tokenizer.from_pretrained('microsoft/deberta-v3-small')
+        # self.model = DebertaV2Model.from_pretrained('microsoft/deberta-v3-small')
         
         # Tiny_BERT embeddings   
-        #self.tokenizer = BertTokenizer.from_pretrained('google/bert_uncased_L-4_H-256_A-4')
-        #self.model = BertModel.from_pretrained('google/bert_uncased_L-4_H-256_A-4')
+        self.tokenizer = BertTokenizer.from_pretrained('google/bert_uncased_L-4_H-256_A-4')
+        self.model = BertModel.from_pretrained('google/bert_uncased_L-4_H-256_A-4')
         
         self.dimension_reducer = nn.Linear(self.model.config.hidden_size, output_dim)
         
@@ -115,9 +115,6 @@ class BertEmbedding():
 
         inputs = self.tokenizer(self.remove_stopwords(text), return_tensors="pt", padding=True, truncation=True)
 
-        # # Get the actual length of input_ids
-        # input_length = inputs['input_ids'].size(1)
-
         # # Pad or truncate
         # if input_length < Nq:
         #     # Calculate the number of mask tokens to add
@@ -137,15 +134,17 @@ class BertEmbedding():
         outputs = self.model(**inputs)
         last_hidden_states = outputs.last_hidden_state
 
-        # Apply the linear layer to reduce dimension size before normalization
-        reduced_dimension_embedding = self.dimension_reducer(last_hidden_states)
+        # # Apply the linear layer to reduce dimension size before normalization
+        # reduced_dimension_embedding = self.dimension_reducer(last_hidden_states)
 
-        # Normalize the reduced embeddings
-        norm = torch.norm(reduced_dimension_embedding, p=2, dim=2, keepdim=True)
-        normalized_reduced_embedding = reduced_dimension_embedding / norm
+        # # Normalize the reduced embeddings
+        # norm = torch.norm(reduced_dimension_embedding, p=2, dim=2, keepdim=True)
+        # normalized_reduced_embedding = reduced_dimension_embedding / norm
+        
         return last_hidden_states.tolist()
 
 
+    # refactor idea: write bert embeddings to numpy array here instead of to one big dict
     def get_bert_embeddings(self):
         """
         Generates BART embeddings for each term in the corpus, handling documents longer than the maximum sequence length by chunking.
@@ -169,21 +168,19 @@ class BertEmbedding():
                 inputs = self.tokenizer(chunk, return_tensors="pt", padding=True, truncation=True)
                 outputs = self.model(**inputs)
                 last_hidden_states = outputs.last_hidden_state
-                # Apply the linear layer to reduce dimension size
-                reduced_dimension_embedding = self.dimension_reducer(last_hidden_states)
+                # # Apply the linear layer to reduce dimension size
+                # reduced_dimension_embedding = self.dimension_reducer(last_hidden_states)
                 chunk_embeddings.append(last_hidden_states)
             
             # Concatenate embeddings from all chunks
             concatenated_embeddings = torch.cat(chunk_embeddings, dim=1)
             # normaliize concatenated embeddings
 
-            # Calculate the Euclidean norm (magnitude) of the vector
-            magnitude = torch.norm(concatenated_embeddings, p=2, dim=2, keepdim=True)
-            # Normalize the vector by dividing by its magnitude
-            normalized_embeddings = concatenated_embeddings / magnitude
+            # # Calculate the Euclidean norm (magnitude) of the vector
+            # magnitude = torch.norm(concatenated_embeddings, p=2, dim=2, keepdim=True)
+            # # Normalize the vector by dividing by its magnitude
+            # normalized_embeddings = concatenated_embeddings / magnitude
 
-            # check if the embeddings are normalized
-            print(torch.norm(normalized_embeddings[0][0]).item())
 
             embeddings[doc_id] = concatenated_embeddings.tolist()
         return embeddings

@@ -1,5 +1,7 @@
 import sys
 import time
+import os
+import json
 
 from pathlib import Path
 sys.path.insert(0, Path(__file__).resolve().parents[1])
@@ -67,31 +69,36 @@ def pre_compute_bm25(embed, index_name, k, exist_ok=True):
     
     return bm25
     
+def get_doc_url(doc_id, directory_path):
+    # Construct the full path to the JSON file
+    file_path = os.path.join(directory_path, f"{doc_id}.json")
+    
+    # Open and load the JSON file
+    with open(file_path, 'r') as file:
+        data = json.load(file)
+    
+    # Return the value of the "url" key
+    return data["url"]
+
 
 def main_bert():   
     
      # Load k crawled documents 
-    k = 200
+    k = 10
     directory_path = "dat/crawled_test/"
     corpus_tue = load_corpus_from_json_files(directory_path, k)
     # url_mapping = load_url_from_json_files(directory_path, k)
-    index_exists = False
     index_name = "test_index_bert"
-    if not index_exists:
-        path_to_index = create_index(corpus_tue, index_name, exist_ok=False)
-    else:
-        path_to_index = Path("dat", f"{index_name}")
+    path_to_index = create_index(corpus_tue, index_name, exist_ok=False)
 
-    # TODO: adpat colBERT init_index to new folder structure
-
-    query = 'frankfurt'
+    query = 'food'
     colBERT_ranker = colBERT(path_to_index)
-    ranked_docs = colBERT_ranker.rank(query=query)
+    ranked_docs = colBERT_ranker.rank(query=query, top_k=5)
     
-    top5 = ranked_docs[:5]
     print(f"Top 5 documents for query: {query}")
-    for doc_id, score in top5:
-        print(f"Document ID: {doc_id}, Score: {score:.4f}")#, URL: {url_mapping.get(doc_id)}")
+    for doc_id, score in ranked_docs:
+
+        print(f"Document ID: {doc_id}, Score: {score:.4f}, URL: {get_doc_url(doc_id, directory_path)}")
 
 
 def main_bm25():
