@@ -140,8 +140,12 @@ class BertEmbedding():
         # # Normalize the reduced embeddings
         # norm = torch.norm(reduced_dimension_embedding, p=2, dim=2, keepdim=True)
         # normalized_reduced_embedding = reduced_dimension_embedding / norm
+
+        # remove embeddings of special beginning and ending token:
+        word_embeddings = last_hidden_states[:, 1:-1, :]
+
         
-        return last_hidden_states.tolist()
+        return word_embeddings.tolist()
 
 
     # refactor idea: write bert embeddings to numpy array here instead of to one big dict

@@ -84,14 +84,14 @@ def get_doc_url(doc_id, directory_path):
 def main_bert():   
     
      # Load k crawled documents 
-    k = 10
-    directory_path = "dat/crawled_test/"
+    k = 5
+    directory_path = "dat/crawled_test2/"
     corpus_tue = load_corpus_from_json_files(directory_path, k)
     # url_mapping = load_url_from_json_files(directory_path, k)
-    index_name = "test_index_bert"
-    path_to_index = create_index(corpus_tue, index_name, exist_ok=False)
+    index_name = "test2_index_bert"
+    path_to_index = create_index(corpus_tue, index_name, exist_ok=True)
 
-    query = 'food'
+    query = 'geigerle'
     colBERT_ranker = colBERT(path_to_index)
     ranked_docs = colBERT_ranker.rank(query=query, top_k=5)
     
