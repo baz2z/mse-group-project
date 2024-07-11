@@ -75,13 +75,13 @@ def main_bert():
     k = 10
     directory_path = "dat/crawled_docs/"
     corpus_tue = load_corpus_from_json_files(directory_path, k)
-    url_mapping = load_url_from_json_files(directory_path, k)
+    # url_mapping = load_url_from_json_files(directory_path, k)
 
     index_name = "index_bert"
     path_to_index = create_index(corpus_tue, index_name, exist_ok=False)
     
     # TODO: adpat colBERT init_index to new folder structure
-    return
+
     query = 'hölderlin'
     colBERT_ranker = colBERT(path_to_index)
     ranked_docs = colBERT_ranker.rank(query=query)
@@ -126,4 +126,4 @@ def main_bm25():
 
 if __name__ == "__main__":
     # main_bert()
-    main_bm25()
+    main_bert()

@@ -166,10 +166,10 @@ class Index():
             doc_ids = index_data.get('doc_ids', [])
             bert_embeddings = index_data.get('bert_embeddings', [])
             
-            for doc_id, embedding in zip(doc_ids, bert_embeddings):
+            for doc_id in doc_ids:
                 doc_path = base_path / str(doc_id)
-                # doc_path.mkdir(parents=True, exist_ok=True)  # Create a directory for each doc_id
-                np.save(f"{doc_path}_bert.npy", embedding)
+                doc_path.mkdir(parents=True, exist_ok=True)  # Create a directory for each doc_id
+                np.save(doc_path / "bert_embedding.npy", bert_embeddings[doc_id])
 
 
         # path = Path("dat", f"{index_name}.json")
