@@ -1,35 +1,35 @@
 import asyncio
 import hashlib
-import json
-import os
+import re
 from asyncio import sleep
 from typing import Iterator, Literal
+from urllib.parse import unquote
 
 import httpx
+import numpy as np
 import pandas as pd
 import tenacity
-from bs4 import BeautifulSoup
 from cachetools import TTLCache
 from httpx import AsyncClient, Response, URL
-from tenacity import retry, stop_after_attempt, wait_random_exponential
+from lxml import html
+from lxml.etree import ParserError
+from tenacity import retry, stop_after_attempt, wait_exponential
 from tqdm import tqdm
 
 from crawler.config import CrawlerConfig
-from crawler.types import Index, ScrapingRequest
-from get_logger import get_logger
+from crawler.get_logger import get_logger
+from crawler.types import ScrapingRequest
+
+TUBINGEN_PATTERN = re.compile(r"t(ü|ue|u)binge([nr])", re.IGNORECASE)
 
 
 class Crawler:
-    """
-    Web crawler class to scrape the web pages
-    """
-
     def __init__(self, run_id: str = "", config: CrawlerConfig = None):
         self.run_id: str = run_id or pd.Timestamp.now().strftime("%Y%m%d%H%M%S")
         self.config: CrawlerConfig = config or CrawlerConfig()
         self.frontier: pd.DataFrame = self.load_frontier()
         self.recently_visited: TTLCache = TTLCache(
-            maxsize=100, ttl=self.config.sleep_time
+            maxsize=512, ttl=self.config.sleep_time
         )
         self._client: AsyncClient or None = None
 
@@ -50,122 +50,72 @@ class Crawler:
         """
         return hashlib.md5(str(url).encode()).hexdigest()
 
-    def check_allowed_domains(self, domain: bytes) -> bool:
-        """
-        Checks if the domain is in the allowed domains list
-        """
-        if not self.config.allowed_domains_pattern:
-            return True
-
-        for pattern in self.config.allowed_domains_pattern:
-            if pattern.match(domain.decode()):
-                return True
-
-        return False
-
-    def check_denied_domains(self, domain: bytes) -> bool:
-        """
-        Checks if the domain is in the forbidden domains list
-        """
-        for pattern in self.config.forbidden_domains_pattern:
-            if pattern.match(domain.decode()):
-                return False
-
-        return True
+    @staticmethod
+    def is_html(response: Response) -> bool:
+        return response.headers.get("content-type", "").startswith("text/html")
 
     @staticmethod
-    def check_url_has_extension(url: URL) -> bool:
-        """
-        Checks if the URL has an extension (e.g., .jpg, .png, .pdf)
-        """
-        _, ext = os.path.splitext(url.path)
-        if ext and ext != ".html":
+    def check_tubingen_in_url(url: URL) -> bool:
+        # special case for tuepedia.de
+        if url.netloc == b'www.tuepedia.de':
             return True
 
-        return False
+        # tubingen must be in the domain or the path
+        url = url.copy_with(query=None, fragment=None)
+        url_string = unquote(str(url))
+        return bool(TUBINGEN_PATTERN.search(url_string))
 
     def is_url_valid(self, url: URL) -> bool:
-        """
-        Checks if the URL is valid by checking if it has a scheme and netloc
-        and if it does not have an extension (e.g., .jpg, .png, .pdf)
-        """
-        if not (url.scheme and url.netloc):
-            return False
+        return (
+                url.is_absolute_url
+                and url.scheme in {"http", "https"}
+                and url.netloc
+                and self.check_tubingen_in_url(url)
+        )
 
-        if self.check_url_has_extension(url):
-            return False
-
-        if not self.check_denied_domains(url.netloc):
-            return False
-
-        if not self.check_allowed_domains(url.netloc):
-            return False
-
-        return True
-
-    @staticmethod
-    def extract_text_from_soup(soup: BeautifulSoup) -> str:
-        """
-        Extracts the text from the soup object by joining all paragraphs
-        """
-        paragraphs = (p.get_text().strip() for p in soup.find_all("p"))
-        return " \n ".join(p for p in paragraphs if p)
-
-    @retry(stop=stop_after_attempt(3), wait=wait_random_exponential(max=10))
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential())
     async def _get(self, url: URL) -> Response:
-        """
-        Fetches the URL and raises an exception if the status code is not 2xx
-        We use the tenacity library to retry the request 3 times with exponential backoff
-        We use the TTL cache to avoid visiting the same domain too often
-        """
         while self.recently_visited.get(url.netloc):
             await sleep(0.2)
 
         async with asyncio.timeout(self.config.timeout):
             response = await self.client.get(url, follow_redirects=True)
 
+        self.recently_visited[url.netloc] = True
         response.raise_for_status()
 
-        self.recently_visited[url.netloc] = True
         return response
 
     def load_frontier(self) -> pd.DataFrame:
-        """
-        Loads the frontier from the CSV file if it exists, otherwise
-        it converts the seed URLs to the frontier format and returns it
-        """
         fp = self.config.ids_dir / f"{self.run_id}.csv"
         if fp.exists():
             logger.debug("Loading the existing frontier")
             return pd.read_csv(fp).set_index("doc_id")
         else:
             logger.debug("Creating a new frontier")
-            return pd.DataFrame(self.convert_seed_to_frontier()).set_index("doc_id")
+            return (
+                pd.DataFrame(self.convert_seed_to_frontier())
+                .drop_duplicates(subset=["doc_id"])
+                .set_index("doc_id")
+            )
 
     def convert_seed_to_frontier(self) -> Iterator[dict[str, any]]:
-        """
-        Converts the seed URLs to the frontier format
-        """
         for url in self.config.seed_urls:
+            doc_id = self.create_id_for_url(url)
             yield {
-                "doc_id": self.create_id_for_url(url),
-                "url": url,
+                "doc_id": doc_id,
+                "url": str(url),
                 "domain": url.netloc,
                 "depth": 0,
                 "status": "pending",
                 "created": pd.Timestamp.now(),
+                "root": str(url),
             }
 
     def count_docs(self) -> int:
-        """
-        Counts the number of documents that are completed
-        """
         return (self.frontier["status"] == "completed").sum()
 
-    def add_to_frontier(self, url: URL, depth: int) -> None:
-        """
-        Adds the URL to the frontier if it does not exist already
-        """
+    def add_to_frontier(self, url: URL, depth: int, root: str) -> None:
         doc_id = self.create_id_for_url(url)
 
         try:
@@ -177,29 +127,24 @@ class Crawler:
                 "depth": depth,
                 "status": "pending",
                 "created": pd.Timestamp.now(),
+                "root": root,
             }
             return None
 
         if entry["status"] == "pending" and entry["depth"] > depth:
+            self.frontier.loc[doc_id, "root"] = root
             self.frontier.loc[doc_id, "depth"] = depth
 
         return None
 
-    def fetch_next_doc_batch(self, limit: int = 32) -> list[ScrapingRequest]:
-        """
-        Fetches the next batch of documents to be scraped
-        1. Query the frontier for pending documents that are not yet visited
-        2. Filter the documents by conditions (e.g., depth < max_depth and allowed_domains)
-        3. Sort the documents by depth and created date
-        4. Group the documents by netloc
-        5. Prioritize the documents that are recently visited
-        6. Return a batch of documents to be scraped (up to the limit, all from different domains)
-        """
+    def fetch_next_doc_batch(self, limit: int = 256) -> list[ScrapingRequest]:
+        pending_docs = self.frontier.query(
+            "status == 'pending' and depth < @self.config.max_depth"
+        )
+        pending_docs["sort_hier"] = np.random.rand(len(pending_docs))
         pending_docs = (
-            self.frontier.query(
-                "status == 'pending' and depth < @self.config.max_depth"
-            )
-            .sort_values(["depth", "created"], ascending=[True, True])
+            pending_docs
+            .sort_values(["depth", "sort_hier"])
             .drop_duplicates(subset=["domain"], keep="first")
             .head(limit)
         )
@@ -208,127 +153,80 @@ class Crawler:
                 doc_id=str(doc_id),
                 url=URL(row["url"]),
                 depth=row["depth"],
+                root=row["root"],
             )
             for doc_id, row in pending_docs.iterrows()
         ]
 
-    def extract_links(self, soup: BeautifulSoup, base_url: URL) -> Iterator[URL]:
-        for link_element in soup.find_all("a", href=True):
-            if url := self.extract_url(link_element["href"], base_url):
-                yield url
+    def extract_links(self, content: bytes, base_url: URL) -> Iterator[URL]:
+        try:
+            for href in html.fromstring(content).xpath("//a/@href"):
+                if url := self.extract_url(href, base_url):
+                    yield url
+        except ParserError:
+            logger.debug("ParserError occurred while extracting links")
 
     def extract_url(self, url: str, base_url: URL) -> URL or None:
-        """
-        Extracts the URL from the href attribute of the anchor tag
-        """
         try:
             url = URL(url)
         except httpx.InvalidURL:
             logger.debug(f"Invalid URL: {url}")
             return None
 
-        if url.is_relative_url:
+        if url.is_relative_url and base_url:
             url = base_url.join(url)
+        elif url.is_relative_url:
+            return None
 
         url = url.copy_with(fragment=None)
-
         return url if self.is_url_valid(url) else None
 
     def mark_status(
-        self, doc_id: str, status: Literal["pending", "completed", "failed"]
+            self, doc_id: str, status: Literal["pending", "completed", "failed"]
     ) -> None:
-        """
-        Marks the status of the document in the frontier
-        """
         self.frontier.loc[doc_id, "status"] = status
 
-    def save_data(self, doc_id: str, content: str, index: dict[str, any]) -> None:
-        """
-        Saves the HTML content and index to the respective directories
-        """
-        with open(self.config.html_dir / f"{doc_id}.html", "w", encoding="utf-8") as f:
+    def save_response(self, doc_id: str, content: bytes) -> None:
+        with open(self.config.html_dir / f"{doc_id}.html", "wb") as f:
             f.write(content)
 
-        with open(self.config.index_dir / f"{doc_id}.json", "w", encoding="utf-8") as f:
-            json.dump(index, f)
-
     def save_frontier(self) -> None:
-        """
-        Saves the frontier to the CSV file
-        """
         self.frontier.to_csv(self.config.ids_dir / f"{self.run_id}.csv")
 
-    def create_index(self, response: Response, soup: BeautifulSoup) -> Index:
-        """
-        Creates an index for the document
-        """
-        url = str(response.url)
-        text = self.extract_text_from_soup(soup)
-        return {"url": url, "text": text}
-
-    @staticmethod
-    def _get_soup(response: Response) -> BeautifulSoup:
-        """
-        Parses the HTML content using BeautifulSoup
-        """
-        if response.text.startswith("<?xml"):
-            return BeautifulSoup("", "lxml")
-
-        try:
-            return BeautifulSoup(response.text, "lxml")
-        except Exception as e:
-            logger.error(f"Error parsing the HTML: {e}")
-            return BeautifulSoup("", "lxml")
-
-    async def crawl(self, req: ScrapingRequest) -> bool:
-        """
-        Crawls the URL and extracts the text and links
-        Creates an index and saves the HTML and index files
-        Marks the status as completed if successful, otherwise as failed
-        Saves new URLs to the frontier
-        """
-        try:
-            response = await self._get(req.url)
-        except tenacity.RetryError:
-            response = None
-
-        if (
-            response is None
-            or response.headers.get("content-type", "").split(";")[0] != "text/html"
-        ):
-            self.mark_status(req.doc_id, "failed")
-            return False
-
-        soup = self._get_soup(response)
-        index = self.create_index(response, soup)
-        self.save_data(req.doc_id, response.text, index)
-        self.mark_status(req.doc_id, "completed")
-
-        for url in self.extract_links(soup, response.url):
-            self.add_to_frontier(url, req.depth + 1)
-
-        return True
-
     async def close(self) -> None:
-        """
-        Closes the HTTP client
-        """
         if self._client:
             await self._client.aclose()
             self._client = None
 
+    async def fetch_response(self, req: ScrapingRequest) -> Response or None:
+        try:
+            return await self._get(req.url)
+        except tenacity.RetryError:
+            return None
+
     async def _run(self) -> None:
-        """
-        Main function to run the crawler
-        """
-        pbar = tqdm(total=self.config.max_docs - self.count_docs())
-        while (
-            req := self.fetch_next_doc_batch()
-        ) and self.count_docs() < self.config.max_docs:
-            logger.debug(f"Fetching {len(req)} documents")
-            results = await asyncio.gather(*[self.crawl(r) for r in req])
+        pbar = tqdm(total=None)
+        while req_batch := self.fetch_next_doc_batch():
+            if self.count_docs() >= self.config.max_docs:
+                break
+
+            responses = await asyncio.gather(
+                *[self.fetch_response(r) for r in req_batch]
+            )
+            for req, response in zip(req_batch, responses):
+                if response is None or not self.is_html(response):
+                    self.mark_status(req.doc_id, "failed")
+                    continue
+
+                pbar.set_description(f"Processing: {req.doc_id}")
+                self.save_response(req.doc_id, response.content)
+                for link in self.extract_links(response.content, response.url):
+                    self.add_to_frontier(link, req.depth + 1, req.root)
+
+                self.mark_status(req.doc_id, "completed")
+                pbar.update(1)
+
             self.save_frontier()
-            pbar.update(sum(results))
 
         pbar.close()
 
@@ -343,9 +241,6 @@ class Crawler:
 
 
 if __name__ == "__main__":
-    import logging
-
-    logger = get_logger("crawler", logging.INFO)
-
+    logger = get_logger("crawler")
     c = Crawler()
     asyncio.run(c.run())

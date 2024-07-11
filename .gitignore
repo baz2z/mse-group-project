@@ -2,3 +2,7 @@ dat/
 .idea
 venv
 **/__pycache__
+
+src/crawler/secrets_local.py
+src/crawler/serpapi_crawler.py
+src/crawler/prescore.py
