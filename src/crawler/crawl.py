@@ -6,7 +6,6 @@ from typing import Iterator, Literal
 from urllib.parse import unquote
 
 import httpx
-import numpy as np
 import pandas as pd
 import tenacity
 from cachetools import TTLCache
@@ -19,6 +18,8 @@ from tqdm import tqdm
 from crawler.config import CrawlerConfig
 from crawler.get_logger import get_logger
 from crawler.types import ScrapingRequest
+
+pd.options.mode.chained_assignment = None  # default='warn'
 
 TUBINGEN_PATTERN = re.compile(r"t(ü|ue|u)binge([nr])", re.IGNORECASE)
 
@@ -56,20 +57,14 @@ class Crawler:
 
     @staticmethod
     def check_tubingen_in_url(url: URL) -> bool:
-        # special case for tuepedia.de
         if url.netloc == b'www.tuepedia.de':
             return True
 
-        # tubingen must be in the domain or the path
-        url = url.copy_with(query=None, fragment=None)
-        url_string = unquote(str(url))
-        return bool(TUBINGEN_PATTERN.search(url_string))
+        return bool(TUBINGEN_PATTERN.search(unquote(str(url))))
 
     def is_url_valid(self, url: URL) -> bool:
         return (
                 url.is_absolute_url
-                and url.scheme in {"http", "https"}
-                and url.netloc
                 and self.check_tubingen_in_url(url)
         )
 
@@ -109,7 +104,7 @@ class Crawler:
                 "depth": 0,
                 "status": "pending",
                 "created": pd.Timestamp.now(),
-                "root": str(url),
+                "root": doc_id,
             }
 
     def count_docs(self) -> int:
@@ -138,13 +133,9 @@ class Crawler:
         return None
 
     def fetch_next_doc_batch(self, limit: int = 256) -> list[ScrapingRequest]:
-        pending_docs = self.frontier.query(
-            "status == 'pending' and depth < @self.config.max_depth"
-        )
-        pending_docs["sort_hier"] = np.random.rand(len(pending_docs))
         pending_docs = (
-            pending_docs
-            .sort_values(["depth", "sort_hier"])
+            self.frontier.query("status == 'pending'")
+            .sort_values(["depth", "created"], ascending=[True, True])
             .drop_duplicates(subset=["domain"], keep="first")
             .head(limit)
         )
@@ -173,12 +164,10 @@ class Crawler:
             logger.debug(f"Invalid URL: {url}")
             return None
 
-        if url.is_relative_url and base_url:
+        if url.is_relative_url:
             url = base_url.join(url)
-        elif url.is_relative_url:
-            return None
 
-        url = url.copy_with(fragment=None)
+        url = URL(scheme=url.scheme, netloc=url.netloc, raw_path=url.raw_path)
         return url if self.is_url_valid(url) else None
 
     def mark_status(
@@ -187,8 +176,7 @@ class Crawler:
         self.frontier.loc[doc_id, "status"] = status
 
     def save_response(self, doc_id: str, content: bytes) -> None:
-        with open(self.config.html_dir / f"{doc_id}.html", "wb") as f:
-            f.write(content)
+        (self.config.html_dir / f"{doc_id}.html").write_bytes(content)
 
     def save_frontier(self) -> None:
         self.frontier.to_csv(self.config.ids_dir / f"{self.run_id}.csv")
@@ -207,11 +195,8 @@ class Crawler:
     async def _run(self) -> None:
         pbar = tqdm(total=None)
         while req_batch := self.fetch_next_doc_batch():
-            if self.count_docs() >= self.config.max_docs:
-                break
-
             responses = await asyncio.gather(
-                *[self.fetch_response(r) for r in req_batch]
+                *(self.fetch_response(r) for r in req_batch)
             )
             for req, response in zip(req_batch, responses):
                 if response is None or not self.is_html(response):
