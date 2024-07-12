@@ -179,4 +179,4 @@ class Index():
         export_to_folder(path_folders, self.index_data)
 
         print(f"Index exported to {path_folders}.")
-        
+

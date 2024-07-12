@@ -31,6 +31,15 @@ class colBERT():
         # Initialize index
         self.index_path = index_path        
         self.initialize_index()
+
+    @staticmethod
+    def load(filename):
+        with open(f"{filename}.pkl", "rb") as fsave:
+            return pickle.load(fsave)
+            
+    def save(self, filename):
+        with open(f"{filename}.pkl", "wb") as fsave:
+            pickle.dump(self, fsave, protocol=pickle.HIGHEST_PROTOCOL)
         
 
     def initialize_index(self):

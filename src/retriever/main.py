@@ -68,6 +68,21 @@ def pre_compute_bm25(embed, index_name, k, exist_ok=True):
     bm25.save(path)
     
     return bm25
+
+def create_colBERT(directory_path, index_name, k, exist_ok=True):
+
+    path = f"dat/{index_name}_{k}"
+    colbert_exists = Path(f"{path}.pkl").exists()
+    if exist_ok and colbert_exists:
+        print(f"colBERT file '{index_name}_{k}.pkl' found. Using pre-computed colBERT")
+        colBERT = colBERT.load(path)
+        return colBERT
+    
+
+    colBERT = colBERT(directory_path)
+    colBERT.save(path)
+    
+    return colBERT
     
 def get_doc_url(doc_id, directory_path):
     # Construct the full path to the JSON file
@@ -99,6 +114,13 @@ def main_bert():
     for doc_id, score in ranked_docs:
 
         print(f"Document ID: {doc_id}, Score: {score:.4f}, URL: {get_doc_url(doc_id, directory_path)}")
+
+def main_bert_refactor():
+    k = 5
+    directory_path = "dat/crawled_test/"
+    
+    colBERT_name = "colBERT_v1"
+    bert = create_colBERT(directory_path, colBERT_name, k, exist_ok=False)
 
 
 def main_bm25():
