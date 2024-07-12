@@ -127,14 +127,14 @@ class Crawler:
                 self.frontier.loc[doc_id, "depth"] = depth
 
             if entry["priority"] < priority.value:
-                self.frontier.loc[doc_id, "priority"] = priority
+                self.frontier.loc[doc_id, "priority"] = priority.value
 
         return None
 
     def fetch_next_doc_batch(self, limit: int = 256) -> list[ScrapingRequest]:
         pending_docs = (
             self.frontier.query(
-                "status == 'pending' and depth <= @self.config.max_depth"
+                "status == 'pending' and depth < @self.config.max_depth"
             )
             .sort_values(
                 ["priority", "depth", "created"], ascending=[False, True, True]
