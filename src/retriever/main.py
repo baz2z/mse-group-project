@@ -120,11 +120,11 @@ def main_bert():
 
 def main_bert_refactor():
     start_time = time.time()
-    k = 10
+    k = 200 #  how many docs to filter through
     corpus_path = "dat/crawled_docs/"
-    colBERT_name = "colBERT_v2"
+    colBERT_name = "colBERT_v4"
     bert = create_colBERT(corpus_path, colBERT_name, k, exist_ok=False)
-    query = 'this text is about culture'
+    query = 'culture'
     ranked_docs = bert.rank(query=query, top_k=5)
     
     print(f"Top 5 documents for query: {query}")
