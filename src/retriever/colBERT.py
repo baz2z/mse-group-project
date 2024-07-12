@@ -3,6 +3,7 @@ import math
 import json
 import sys
 import os
+import pickle   
 
 from pathlib import Path
 
@@ -18,7 +19,7 @@ class colBERT():
     computes relevance scores for documents given a query based on the tfidf approach.
     """
     
-    def __init__(self, index_path):
+    def __init__(self, corpus_path):
         """
         Initialize BM25 on given pre computed index.
         
@@ -27,47 +28,24 @@ class colBERT():
         """
         self.ranker = 'colBERT'
         self.text_embedding = BertEmbedding()
+        self.bert_embeddings = None
        
         # Initialize index
-        self.index_path = index_path        
-        self.initialize_index()
+        self.corpus_path = corpus_path        
+        self.create_index()
 
     @staticmethod
     def load(filename):
         with open(f"{filename}.pkl", "rb") as fsave:
             return pickle.load(fsave)
-            
+
     def save(self, filename):
         with open(f"{filename}.pkl", "wb") as fsave:
             pickle.dump(self, fsave, protocol=pickle.HIGHEST_PROTOCOL)
         
-
-    def initialize_index(self):
-        """
-        Initializes the index by loading the necessary data from the data/index_bert folder.
-        Each subfolder represents a document ID, and each contains a 'bert_embeddings.npy' file.
-        """
-        self.doc_ids = []
-        self.bert_embeddings = []
-
-        # Path to the folder containing the index data
-        index_folder_path = self.index_path
+    def create_index(self):
+        self.bert_embeddings =  self.text_embedding.get_bert_embeddings(self.corpus_path)
         
-        # List all directories in the index folder
-        for doc_id in os.listdir(index_folder_path):
-            doc_path = os.path.join(index_folder_path, doc_id)
-            
-            # Check if the path is indeed a directory
-            if os.path.isdir(doc_path):
-                self.doc_ids.append(doc_id)
-                
-                # Path to the numpy array file
-                embeddings_file_path = os.path.join(doc_path, 'bert_embedding.npy')
-                print(f"Searching for file at: {os.path.abspath(embeddings_file_path)}")
-
-                
-                # Load the numpy array and append it to the bert_embeddings list
-                self.bert_embeddings.append(np.load(embeddings_file_path))
 
     def vectorize_query(self, query):
         """
@@ -102,7 +80,7 @@ class colBERT():
     
     def compute_scores(self, query_vector):
         scores = []
-        for doc_id, doc_embedding in zip(self.doc_ids, self.bert_embeddings):
+        for doc_id, doc_embedding in self.bert_embeddings.items():
             doc_score = 0
             for query_token_embedding in query_vector[0]:
                 token_similarities = []

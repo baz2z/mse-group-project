@@ -69,20 +69,20 @@ def pre_compute_bm25(embed, index_name, k, exist_ok=True):
     
     return bm25
 
-def create_colBERT(directory_path, index_name, k, exist_ok=True):
+def create_colBERT(corpus_path, index_name, k, exist_ok=True):
 
     path = f"dat/{index_name}_{k}"
     colbert_exists = Path(f"{path}.pkl").exists()
     if exist_ok and colbert_exists:
         print(f"colBERT file '{index_name}_{k}.pkl' found. Using pre-computed colBERT")
-        colBERT = colBERT.load(path)
-        return colBERT
+        colbert = colBERT.load(path)
+        return colbert
     
 
-    colBERT = colBERT(directory_path)
-    colBERT.save(path)
+    colbert = colBERT(corpus_path)
+    colbert.save(path)
     
-    return colBERT
+    return colbert
     
 def get_doc_url(doc_id, directory_path):
     # Construct the full path to the JSON file
@@ -115,13 +115,23 @@ def main_bert():
 
         print(f"Document ID: {doc_id}, Score: {score:.4f}, URL: {get_doc_url(doc_id, directory_path)}")
 
-def main_bert_refactor():
-    k = 5
-    directory_path = "dat/crawled_test/"
-    
-    colBERT_name = "colBERT_v1"
-    bert = create_colBERT(directory_path, colBERT_name, k, exist_ok=False)
 
+def main_bert_refactor():
+    start_time = time.time()
+    k = 10
+    corpus_path = "dat/crawled_docs/"
+    colBERT_name = "colBERT_v2"
+    bert = create_colBERT(corpus_path, colBERT_name, k, exist_ok=False)
+    query = 'this text is about culture'
+    ranked_docs = bert.rank(query=query, top_k=5)
+    
+    print(f"Top 5 documents for query: {query}")
+    for doc_id, score in ranked_docs:
+        print(f"Document ID: {doc_id}, Score: {score:.4f}, URL: {get_doc_url(doc_id, corpus_path)}")    
+    
+    end_time = time.time()
+    execution_time = end_time - start_time
+    print(f"Execution time: {execution_time} seconds")
 
 def main_bm25():
     
@@ -157,4 +167,4 @@ def main_bm25():
 
 if __name__ == "__main__":
     # main_bert()
-    main_bert()
+    main_bert_refactor()

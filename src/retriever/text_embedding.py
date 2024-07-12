@@ -10,6 +10,7 @@ from transformers import BertTokenizer, BertModel
 from transformers import DebertaV2Tokenizer, DebertaV2Model
 import torch
 import torch.nn as nn
+from in_out import load_corpus_from_json_files
 
 sys.path.insert(0, Path(__file__).resolve().parents[1])
 
@@ -147,15 +148,15 @@ class BertEmbedding():
         
         return word_embeddings.tolist()
 
-
     # refactor idea: write bert embeddings to numpy array here instead of to one big dict
-    def get_bert_embeddings(self):
+    def get_bert_embeddings(self, corpus_path):
         """
         Generates BART embeddings for each term in the corpus, handling documents longer than the maximum sequence length by chunking.
         
         Returns:
             A dictionary where keys are document IDs and values are concatenated embeddings of chunks.
         """
+        self.corpus = load_corpus_from_json_files(corpus_path)
         embeddings = {}
         max_length = 512  # Assuming 512 is the max length for BART
         for doc_id, document in self.corpus.items():

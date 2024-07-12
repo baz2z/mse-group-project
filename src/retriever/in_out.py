@@ -5,7 +5,7 @@ import csv
 from scipy.sparse import csr_matrix
 
 
-def load_corpus_from_json_files(directory_path, k=1000):
+def load_corpus_from_json_files(directory_path, k=200):
     corpus = {}
     idx = 0
     for filename in os.listdir(directory_path):
@@ -19,6 +19,7 @@ def load_corpus_from_json_files(directory_path, k=1000):
             idx += 1
         if idx % 5000 == 0:
             print(f"Processing jsons - n={idx}")
+    print(f"loaded {idx} documents")
     return corpus
 
 
