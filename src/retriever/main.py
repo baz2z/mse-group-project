@@ -81,7 +81,7 @@ def create_colBERT(corpus_path, index_name, k, exist_ok=True):
         return colbert
     
 
-    colbert = colBERT(corpus_path)
+    colbert = colBERT(corpus_path, k)
     colbert.save(path)
     
     return colbert
@@ -120,10 +120,10 @@ def main_bert():
 
 def main_bert_refactor():
     start_time = time.time()
-    k = 10
+    k = 100 #  how many docs to filter through
     corpus_path = "dat/crawled_docs/"
-    colBERT_name = "colBERT_v2"
-    bert = create_colBERT(corpus_path, colBERT_name, k, exist_ok=False)
+    colBERT_name = "colBERT_v4"
+    bert = create_colBERT(corpus_path, colBERT_name, k, exist_ok=True)
     query = 'this text is about culture'
     ranked_docs = bert.rank(query=query, top_k=5)
     

@@ -4,6 +4,7 @@ import json
 import sys
 import os
 import pickle   
+import torch
 
 from pathlib import Path
 
@@ -19,7 +20,7 @@ class colBERT():
     computes relevance scores for documents given a query based on the tfidf approach.
     """
     
-    def __init__(self, corpus_path):
+    def __init__(self, corpus_path, k):
         """
         Initialize BM25 on given pre computed index.
         
@@ -29,6 +30,8 @@ class colBERT():
         self.ranker = 'colBERT'
         self.text_embedding = BertEmbedding()
         self.bert_embeddings = None
+        self.doc_ids = None
+        self.k = k
        
         # Initialize index
         self.corpus_path = corpus_path        
@@ -44,7 +47,8 @@ class colBERT():
             pickle.dump(self, fsave, protocol=pickle.HIGHEST_PROTOCOL)
         
     def create_index(self):
-        self.bert_embeddings =  self.text_embedding.get_bert_embeddings(self.corpus_path)
+        self.doc_ids, self.bert_embeddings =  self.text_embedding.get_bert_embeddings(self.corpus_path, self.k)
+
         
 
     def vectorize_query(self, query):
@@ -73,26 +77,43 @@ class colBERT():
             list: A list of tuples containing the document ID and the relevance score.
         """
         query_vector = self.vectorize_query(query)
-        scores = self.compute_scores(query_vector)
-        ranked_docs = self.get_top_k(scores, top_k)
+        scores, indices = self.compute_scores(query_vector, top_k)
+
+        # Assuming self.doc_ids stores document IDs corresponding to the indices in self.bert_embeddings
+        doc_ids = [self.doc_ids[idx] for idx in indices]
+    
+        ranked_docs = list(zip(doc_ids, scores))
+
         
         return ranked_docs
-    
-    def compute_scores(self, query_vector):
-        scores = []
-        for doc_id, doc_embedding in self.bert_embeddings.items():
-            doc_score = 0
-            for query_token_embedding in query_vector[0]:
-                token_similarities = []
-                doc_token_embeddings = doc_embedding[0]
-                # Calculate cosine similarities for this token across all document tokens
-                similarities = [np.dot(query_token_embedding, doc_token_embedding) / 
-                               (np.linalg.norm(query_token_embedding) * np.linalg.norm(doc_token_embedding)) 
-                                for doc_token_embedding in doc_token_embeddings]  # Iterate through embeddings for each token
-                token_similarities.append(max(similarities))  # Find the max similarity for this token
-                doc_score += sum(token_similarities)  # Sum of max similarities for all query tokens
-            scores.append((doc_id, doc_score))
-        return scores
+
+
+    def compute_scores(self, query_vector, top_k=10):
+        sim_scores_per_doc = []
+        epsilon = 1e-10  # Small value to avoid division by zero
+
+        print(self.bert_embeddings.shape)
+        for query_embedding in query_vector:
+            print(query_embedding.shape)
+            # Normalize query_embedding
+            query_embedding_norm = query_embedding / (torch.norm(query_embedding, p=2, dim=0, keepdim=True) + epsilon)
+            
+            # Normalize bert_embeddings
+            bert_embeddings_norm = self.bert_embeddings / (torch.norm(self.bert_embeddings, p=2, dim=2, keepdim=True) + epsilon)
+            
+            # Perform dot product using matmul, now with normalized embeddings
+            scores = torch.matmul(bert_embeddings_norm, query_embedding_norm.T)  # Transpose query_embedding_norm for matmul
+            print(scores.shape)
+            max_scores, _ = torch.max(scores, dim=1)
+            sim_scores_per_doc.append(max_scores)
+        
+        # Convert list to tensor
+        sim_scores_tensor = torch.stack(sim_scores_per_doc)
+        # Sum over the documents
+        sum_over_docs = torch.sum(sim_scores_tensor, dim=0)
+        top_k_scores, top_k_indices = torch.topk(sum_over_docs, k=top_k)
+
+        return top_k_scores, top_k_indices
     
     def get_top_k(self, scores, top_k):
         return sorted(scores, key=lambda x: x[1], reverse=True)[:top_k]
