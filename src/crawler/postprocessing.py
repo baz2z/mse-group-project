@@ -31,7 +31,7 @@ class ProcessedDoc(NamedTuple):
 
 def process_doc(content: bytes, doc_id: str):
     html_str = content.decode("utf-8", errors="ignore")
-    md_text = md(html_str, strip=['a', 'img'])
+    md_text = md(html_str, strip=["a", "img"])
     md_text = NEWLINE_PATTERN.sub("\n\n", md_text).strip()
 
     if len(md_text) < 256:
@@ -64,5 +64,5 @@ def process_all():
         pbar.update(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     process_all()
