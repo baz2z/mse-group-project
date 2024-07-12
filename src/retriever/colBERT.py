@@ -20,7 +20,7 @@ class colBERT():
     computes relevance scores for documents given a query based on the tfidf approach.
     """
     
-    def __init__(self, corpus_path):
+    def __init__(self, corpus_path, k):
         """
         Initialize BM25 on given pre computed index.
         
@@ -31,6 +31,7 @@ class colBERT():
         self.text_embedding = BertEmbedding()
         self.bert_embeddings = None
         self.doc_ids = None
+        self.k = k
        
         # Initialize index
         self.corpus_path = corpus_path        
@@ -46,7 +47,7 @@ class colBERT():
             pickle.dump(self, fsave, protocol=pickle.HIGHEST_PROTOCOL)
         
     def create_index(self):
-        self.doc_ids, self.bert_embeddings =  self.text_embedding.get_bert_embeddings(self.corpus_path)
+        self.doc_ids, self.bert_embeddings =  self.text_embedding.get_bert_embeddings(self.corpus_path, self.k)
 
         
 
