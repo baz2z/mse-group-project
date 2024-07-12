@@ -189,15 +189,9 @@ def main_nli():
     print(f"Execution time: {execution_time} seconds")
     
 
-def retrieve(index_dir, k_docs, query):
+def retrieve(corpus, url_mapping, query):
     
-    start_time = time.time()
-    
-    # Load k crawled documents 
-    corpus_tue = load_corpus_from_json_files(index_dir, k_docs)
-    url_mapping = load_url_from_json_files(index_dir, k_docs)
-    
-    embed = BagOfWordsTokenizer(corpus=corpus_tue)
+    embed = BagOfWordsTokenizer(corpus=corpus)
     doc_ids = embed.doc_ids
     query_tokenized = embed.tokenize(query)
     
@@ -222,14 +216,10 @@ def retrieve(index_dir, k_docs, query):
     for doc_id, score in deberta_top_n:
         print(f"Document ID: {doc_id}, Score: {score:.4f}, URL: {url_mapping_top_n.get(doc_id)}")
     
-    end_time = time.time()
-    execution_time = end_time - start_time
-    print(f"Execution time: {execution_time} seconds")
-    
     return deberta_top_n, url_mapping_top_n
 
 
-def batch(batch_of_queries, results_path):
+def batch(corpus, url_mapping, batch_of_queries, results_path):
     # Load queries from the query batch file
     with open(batch_of_queries, 'r') as file:
         queries = file.readlines()
@@ -241,8 +231,8 @@ def batch(batch_of_queries, results_path):
         # Get the top n documents for each query
         for query_num, query in enumerate(queries):
             top_n, url_mapping_top_n = retrieve(
-                index_dir="dat/crawled_docs/",
-                k_docs=15000,
+                corpus=corpus,
+                url_mapping=url_mapping,
                 query=query
             )
             
@@ -263,7 +253,23 @@ if __name__ == "__main__":
     #     query="cinema"
     #     )
     
+    start_time = time.time()
+    
+    index_dir = "dat/crawled_docs/"
+    k_docs = 15000
+    
+    # Load k crawled documents 
+    corpus_tue = load_corpus_from_json_files(index_dir, k_docs)
+    url_mapping = load_url_from_json_files(index_dir, k_docs)
+    
     batch(
+        corpus=corpus_tue,
+        url_mapping=url_mapping,
         batch_of_queries="dat/query_batch_file.txt",
         results_path="dat/results.txt"
         )
+    
+    end_time = time.time()
+    execution_time = end_time - start_time
+    print(f"Execution time: {execution_time} seconds")
+    
