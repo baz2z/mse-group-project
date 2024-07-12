@@ -20,7 +20,7 @@ class colBERT():
     computes relevance scores for documents given a query based on the tfidf approach.
     """
     
-    def __init__(self, corpus_path, k):
+    def __init__(self, corpus):
         """
         Initialize BM25 on given pre computed index.
         
@@ -28,13 +28,14 @@ class colBERT():
             path (str): The file path to the index.   
         """
         self.ranker = 'colBERT'
-        self.text_embedding = BertEmbedding()
+        self.corpus = corpus
+        self.text_embedding = BertEmbedding(corpus=corpus)
         self.bert_embeddings = None
         self.doc_ids = None
-        self.k = k
+        # self.k = k
        
         # Initialize index
-        self.corpus_path = corpus_path        
+        # self.corpus_path = corpus_path        
         self.create_index()
 
     @staticmethod
@@ -47,9 +48,7 @@ class colBERT():
             pickle.dump(self, fsave, protocol=pickle.HIGHEST_PROTOCOL)
         
     def create_index(self):
-        self.doc_ids, self.bert_embeddings =  self.text_embedding.get_bert_embeddings(self.corpus_path, self.k)
-
-        
+        self.doc_ids, self.bert_embeddings =  self.text_embedding.get_bert_embeddings()
 
     def vectorize_query(self, query):
         """
@@ -92,9 +91,9 @@ class colBERT():
         sim_scores_per_doc = []
         epsilon = 1e-10  # Small value to avoid division by zero
 
-        print(self.bert_embeddings.shape)
+        # print(self.bert_embeddings.shape)
         for query_embedding in query_vector:
-            print(query_embedding.shape)
+            # print(query_embedding.shape)
             # Normalize query_embedding
             query_embedding_norm = query_embedding / (torch.norm(query_embedding, p=2, dim=0, keepdim=True) + epsilon)
             
@@ -103,7 +102,7 @@ class colBERT():
             
             # Perform dot product using matmul, now with normalized embeddings
             scores = torch.matmul(bert_embeddings_norm, query_embedding_norm.T)  # Transpose query_embedding_norm for matmul
-            print(scores.shape)
+            # print(scores.shape)
             max_scores, _ = torch.max(scores, dim=1)
             sim_scores_per_doc.append(max_scores)
         

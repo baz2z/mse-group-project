@@ -149,14 +149,13 @@ class BertEmbedding():
         return word_embeddings
 
     # refactor idea: write bert embeddings to numpy array here instead of to one big dict
-    def get_bert_embeddings(self, corpus_path, k):
+    def get_bert_embeddings(self):
         """
         Generates BART embeddings for each term in the corpus, handling documents longer than the maximum sequence length by chunking.
         
         Returns:
             A dictionary where keys are document IDs and values are concatenated embeddings of chunks.
         """
-        self.corpus = load_corpus_from_json_files(corpus_path, k)
         doc_ids = []  # List to store document IDs
         chunk_embeddings_list = []  # List to temporarily store embeddings for each document
         

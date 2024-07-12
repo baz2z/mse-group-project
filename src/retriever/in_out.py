@@ -10,7 +10,7 @@ def load_corpus_from_json_files(directory_path, k=200):
     idx = 0
     for filename in os.listdir(directory_path):
         if filename.endswith(".json"):
-            if idx > k:
+            if idx >= k:
                 return corpus
             file_path = os.path.join(directory_path, filename)
             with open(file_path, 'r') as file:
