@@ -2,6 +2,8 @@ import numpy as np
 import math
 import json
 import sys
+import os
+import pickle   
 
 from pathlib import Path
 
@@ -17,7 +19,7 @@ class colBERT():
     computes relevance scores for documents given a query based on the tfidf approach.
     """
     
-    def __init__(self, index_path):
+    def __init__(self, corpus_path):
         """
         Initialize BM25 on given pre computed index.
         
@@ -26,21 +28,24 @@ class colBERT():
         """
         self.ranker = 'colBERT'
         self.text_embedding = BertEmbedding()
+        self.bert_embeddings = None
        
         # Initialize index
-        self.index_path = index_path        
-        self.initialize_index()
-        
+        self.corpus_path = corpus_path        
+        self.create_index()
 
-    def initialize_index(self):
-        """
-        Initializes the index by loading the necessary data from the index json file.
-        """
-        with open(self.index_path, 'r') as file:
-            index_data = json.load(file)
+    @staticmethod
+    def load(filename):
+        with open(f"{filename}.pkl", "rb") as fsave:
+            return pickle.load(fsave)
+
+    def save(self, filename):
+        with open(f"{filename}.pkl", "wb") as fsave:
+            pickle.dump(self, fsave, protocol=pickle.HIGHEST_PROTOCOL)
         
-        self.doc_ids = index_data['doc_ids']
-        self.bert_embedding = index_data['bert_embeddings']
+    def create_index(self):
+        self.bert_embeddings =  self.text_embedding.get_bert_embeddings(self.corpus_path)
+        
 
     def vectorize_query(self, query):
         """
@@ -75,7 +80,7 @@ class colBERT():
     
     def compute_scores(self, query_vector):
         scores = []
-        for doc_id, doc_embedding in self.bert_embedding.items():
+        for doc_id, doc_embedding in self.bert_embeddings.items():
             doc_score = 0
             for query_token_embedding in query_vector[0]:
                 token_similarities = []

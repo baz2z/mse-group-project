@@ -1,5 +1,7 @@
 import sys
 import time
+import os
+import json
 
 from pathlib import Path
 sys.path.insert(0, Path(__file__).resolve().parents[1])
@@ -30,9 +32,9 @@ def create_index(corpus, index_name, exist_ok=True):
 
     """
     # TODO: adapt to new folder structure for bert embeddings
-    path_to_index: Path = Path("dat", f"{index_name}.json")
+    path_to_index: Path = Path("dat", f"{index_name}")
     if exist_ok and path_to_index.exists():
-        print(f"Index file '{index_name}.json' found. Using pre-computed index")
+        print(f"Index file '{index_name}' found. Using pre-computed index")
         return path_to_index
     
     index = Index(corpus)
@@ -68,30 +70,70 @@ def pre_compute_bm25(embed, index_name, k, exist_ok=True):
     bm25.save(path)
     
     return bm25
+
+def create_colBERT(corpus_path, index_name, k, exist_ok=True):
+
+    path = f"dat/{index_name}_{k}"
+    colbert_exists = Path(f"{path}.pkl").exists()
+    if exist_ok and colbert_exists:
+        print(f"colBERT file '{index_name}_{k}.pkl' found. Using pre-computed colBERT")
+        colbert = colBERT.load(path)
+        return colbert
     
+
+    colbert = colBERT(corpus_path)
+    colbert.save(path)
+    
+    return colbert
+    
+def get_doc_url(doc_id, directory_path):
+    # Construct the full path to the JSON file
+    file_path = os.path.join(directory_path, f"{doc_id}.json")
+    
+    # Open and load the JSON file
+    with open(file_path, 'r') as file:
+        data = json.load(file)
+    
+    # Return the value of the "url" key
+    return data["url"]
+
 
 def main_bert():   
     
      # Load k crawled documents 
-    k = 10
-    directory_path = "dat/crawled_docs/"
+    k = 5
+    directory_path = "dat/crawled_test2/"
     corpus_tue = load_corpus_from_json_files(directory_path, k)
-    url_mapping = load_url_from_json_files(directory_path, k)
+    # url_mapping = load_url_from_json_files(directory_path, k)
+    index_name = "test2_index_bert"
+    path_to_index = create_index(corpus_tue, index_name, exist_ok=True)
 
-    index_name = "index_bert"
-    path_to_index = create_index(corpus_tue, index_name, exist_ok=False)
-    
-    # TODO: adpat colBERT init_index to new folder structure
-    return
-    query = 'hölderlin'
+    query = 'geigerle'
     colBERT_ranker = colBERT(path_to_index)
-    ranked_docs = colBERT_ranker.rank(query=query)
+    ranked_docs = colBERT_ranker.rank(query=query, top_k=5)
     
-    top5 = ranked_docs[:5]
     print(f"Top 5 documents for query: {query}")
-    for doc_id, score in top5:
-        print(f"Document ID: {doc_id}, Score: {score:.4f}, URL: {url_mapping.get(doc_id)}")
+    for doc_id, score in ranked_docs:
 
+        print(f"Document ID: {doc_id}, Score: {score:.4f}, URL: {get_doc_url(doc_id, directory_path)}")
+
+
+def main_bert_refactor():
+    start_time = time.time()
+    k = 10
+    corpus_path = "dat/crawled_docs/"
+    colBERT_name = "colBERT_v2"
+    bert = create_colBERT(corpus_path, colBERT_name, k, exist_ok=False)
+    query = 'this text is about culture'
+    ranked_docs = bert.rank(query=query, top_k=5)
+    
+    print(f"Top 5 documents for query: {query}")
+    for doc_id, score in ranked_docs:
+        print(f"Document ID: {doc_id}, Score: {score:.4f}, URL: {get_doc_url(doc_id, corpus_path)}")    
+    
+    end_time = time.time()
+    execution_time = end_time - start_time
+    print(f"Execution time: {execution_time} seconds")
 
 def main_bm25():
     
