@@ -186,6 +186,7 @@ class Crawler:
 
     async def close(self) -> None:
         if self._client:
+            logger.debug("Closing the HTTP client")
             await self._client.aclose()
             self._client = None
 
@@ -193,6 +194,7 @@ class Crawler:
         try:
             return await self._get(req.url)
         except tenacity.RetryError:
+            logger.debug(f"Failed to fetch: {req.url}")
             return None
 
     async def _run(self) -> None:
