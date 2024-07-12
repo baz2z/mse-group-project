@@ -178,7 +178,7 @@ def retrieve(corpus, url_mapping, query, reranker="DebertaV3", n_bm25_docs=100):
     corpus_top_n = {doc_id: corpus[doc_id] for doc_id in bm25_top_n_doc_ids}
     url_mapping_top_n = {doc_id: url_mapping[doc_id] for doc_id in bm25_top_n_doc_ids}
 
-    if reranker == "DebertaV3":
+    if reranker == "NLI":
         print("\n\nReranking with DebertaV3")
         deberta = DebertaV3(corpus_top_n)
         top_n = deberta.rank(query, top_k=5)
@@ -256,8 +256,8 @@ if __name__ == "__main__":
         url_mapping=url_mapping,
         batch_of_queries="dat/query_batch_file.txt",
         results_path="dat/results.txt",
-        reranker="colBERT", # one of "colBERT" or "DebertaV3"
-        n_bm25_docs=15,
+        reranker="colBERT", # one of "colBERT" or "NLI"
+        n_bm25_docs=10,
         )
     
     end_time = time.time()

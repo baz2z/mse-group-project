@@ -116,6 +116,7 @@ class BertEmbedding():
 
         inputs = self.tokenizer(self.remove_stopwords(text), return_tensors="pt", padding=True, truncation=True)
 
+        # TODO: Clean up (still needed?)
         # # Pad or truncate
         # if input_length < Nq:
         #     # Calculate the number of mask tokens to add
@@ -135,6 +136,7 @@ class BertEmbedding():
         outputs = self.model(**inputs)
         last_hidden_states = outputs.last_hidden_state
 
+        # TODO: Clean up
         # # Apply the linear layer to reduce dimension size before normalization
         # reduced_dimension_embedding = self.dimension_reducer(last_hidden_states)
 
