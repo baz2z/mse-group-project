@@ -225,14 +225,45 @@ def retrieve(index_dir, k_docs, query):
     end_time = time.time()
     execution_time = end_time - start_time
     print(f"Execution time: {execution_time} seconds")
+    
+    return deberta_top_n, url_mapping_top_n
 
 
+def batch(batch_of_queries, results_path):
+    # Load queries from the query batch file
+    with open(batch_of_queries, 'r') as file:
+        queries = file.readlines()
+        queries = [query.strip() for query in queries]
+    
+    with open(results_path, 'w') as results_file:
+        results_file.write("query\tdocument\turl\tscore\n")
+        
+        # Get the top n documents for each query
+        for query_num, query in enumerate(queries):
+            top_n, url_mapping_top_n = retrieve(
+                index_dir="dat/crawled_docs/",
+                k_docs=15000,
+                query=query
+            )
+            
+            # Write the results to the results file
+            for id_num, (doc_id, score) in enumerate(top_n):
+                results_file.write(
+                    f"{query_num}\t{id_num}\t{url_mapping_top_n.get(doc_id)}\t{score:.4f}\n"
+                )
+        
+        
 if __name__ == "__main__":
     # main_bert()
     # main_bm25()
     # main_nli()
-    retrieve(
-        index_dir="dat/crawled_docs/", 
-        k_docs=15000, 
-        query="hölderlinturm"
+    # retrieve(
+    #     index_dir="dat/crawled_docs/", 
+    #     k_docs=15000, 
+    #     query="cinema"
+    #     )
+    
+    batch(
+        batch_of_queries="dat/query_batch_file.txt",
+        results_path="dat/results.txt"
         )
