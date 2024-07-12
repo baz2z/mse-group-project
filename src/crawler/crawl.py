@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import logging
 import re
 from typing import Iterator
 from urllib.parse import unquote
@@ -103,7 +104,7 @@ class Crawler:
             }
 
     def add_to_frontier(
-        self, url: URL, priority: Priority, depth: int, root: str
+            self, url: URL, priority: Priority, depth: int, root: str
     ) -> None:
         doc_id = self.create_id_for_url(url)
 
@@ -152,7 +153,7 @@ class Crawler:
         ]
 
     def add_new_links_to_frontier(
-        self, request: ScrapingRequest, response: Response
+            self, request: ScrapingRequest, response: Response
     ) -> None:
         tree = self.parse_html(response.content)
         priority = Priority.high if self.is_english(tree) else Priority.low
@@ -226,6 +227,6 @@ class Crawler:
 
 
 if __name__ == "__main__":
-    logger = get_logger("crawler")
+    logger = get_logger("crawler", logging.DEBUG)
     c = Crawler()
     asyncio.run(c.run())
