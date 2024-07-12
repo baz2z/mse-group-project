@@ -10,7 +10,8 @@ from text_embedding import BagOfWordsTokenizer, BertEmbedding
 from index import Index
 from bm25 import BM25
 from colBERT import colBERT
-from in_out import load_corpus_from_json_files, load_url_mapping_from_csv, load_url_from_json_files
+from nli import DebertaV3
+from in_out import load_corpus_from_json_files, load_url_from_json_files
 
 
 def create_index(corpus, index_name, exist_ok=True):
@@ -124,6 +125,72 @@ def main_bm25():
     execution_time = end_time - start_time
     print(f"Execution time: {execution_time} seconds")
 
+def main_nli():
+    k = 2000
+    directory_path = "dat/crawled_docs/"
+    corpus_tue = load_corpus_from_json_files(directory_path, k)
+    url_mapping = load_url_from_json_files(directory_path, k)
+    
+    # Query
+    query = 'hölderlin'
+    
+    start_time = time.time()
+    
+    # Init DebertaV3 model on given corpus
+    deberta = DebertaV3(corpus_tue)
+    top_n = deberta.rank(query, top_k=5)
+    for doc_id, score in top_n:
+        print(f"Document ID: {doc_id}, Score: {score:.4f}, URL: {url_mapping.get(doc_id)}")
+
+    end_time = time.time()
+    execution_time = end_time - start_time
+    print(f"Execution time: {execution_time} seconds")
+    
+
+def retrieve(index_dir, k_docs, query):
+    
+    start_time = time.time()
+    
+    # Load k crawled documents 
+    corpus_tue = load_corpus_from_json_files(index_dir, k_docs)
+    url_mapping = load_url_from_json_files(index_dir, k_docs)
+    
+    embed = BagOfWordsTokenizer(corpus=corpus_tue)
+    doc_ids = embed.doc_ids
+    query_tokenized = embed.tokenize(query)
+    
+    bm25_name = "bm25"
+    bm25 = pre_compute_bm25(embed, bm25_name, k_docs, exist_ok=True)
+
+    # Retrieve top n documents for the given query
+    bm25_top_n = bm25.retrieve_top_n(query_tokenized, doc_ids, n=100)
+    print("Pre-ranking with BM25")
+    for i, (doc_id, score) in enumerate(bm25_top_n):
+        print(f"Document ID: {doc_id}, Score: {score:.4f}, URL: {url_mapping.get(doc_id)}")
+        if i == 5:
+            break
+        
+    bm25_top_n_doc_ids = [doc_id for doc_id, _ in bm25_top_n]
+    corpus_top_n = {doc_id: corpus_tue[doc_id] for doc_id in bm25_top_n_doc_ids}
+    url_mapping_top_n = {doc_id: url_mapping[doc_id] for doc_id in bm25_top_n_doc_ids}
+
+    deberta = DebertaV3(corpus_top_n)
+    deberta_top_n = deberta.rank(query, top_k=5)
+    print("Reranking with DebertaV3")
+    for doc_id, score in deberta_top_n:
+        print(f"Document ID: {doc_id}, Score: {score:.4f}, URL: {url_mapping_top_n.get(doc_id)}")
+    
+    end_time = time.time()
+    execution_time = end_time - start_time
+    print(f"Execution time: {execution_time} seconds")
+
+
 if __name__ == "__main__":
     # main_bert()
-    main_bm25()
+    # main_bm25()
+    # main_nli()
+    retrieve(
+        index_dir="dat/crawled_docs/", 
+        k_docs=15000, 
+        query="hölderlinturm"
+        )

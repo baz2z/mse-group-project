@@ -1,5 +1,9 @@
+import torch
+
+from tqdm import tqdm
 from transformers import pipeline
 
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class DebertaV3:
     
@@ -7,7 +11,11 @@ class DebertaV3:
         
         task = "zero-shot-classification"
         model = "MoritzLaurer/deberta-v3-large-zeroshot-v2.0"
-        self.zeroshot_classifier = pipeline(task, model=model) 
+        self.zeroshot_classifier = pipeline(
+            task, 
+            model=model, 
+            device=DEVICE
+        ) 
         
         self.doc_ids = list(corpus.keys())
         self.corpus = list(corpus.values())
@@ -28,7 +36,11 @@ class DebertaV3:
             raise ValueError("Query must be a single string")
         
         scores = []
-        for document in self.corpus:
+        for document in tqdm(self.corpus, desc="Ranking documents (NLI)"):
+            if not document:
+                scores.extend([0.0])
+                continue
+            
             score = self.zeroshot_classifier(
                 document, [query], 
                 hypothesis_template=self.hypothesis_template, 
