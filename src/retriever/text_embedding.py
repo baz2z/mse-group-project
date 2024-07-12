@@ -7,8 +7,10 @@ from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
 
 from transformers import BertTokenizer, BertModel
+from transformers import DebertaV2Tokenizer, DebertaV2Model
 import torch
 import torch.nn as nn
+from in_out import load_corpus_from_json_files
 
 sys.path.insert(0, Path(__file__).resolve().parents[1])
 
@@ -71,7 +73,7 @@ class BagOfWordsTokenizer():
 
 class BertEmbedding():
     
-    def __init__(self, corpus=None, output_dim=8):
+    def __init__(self, corpus=None, output_dim=100):
         """
         A class to create text embeddings.
         
@@ -83,11 +85,17 @@ class BertEmbedding():
         
         self.stopwords = set(stopwords.words('english'))
         
-        # Tiny_BERT embeddings 
+        # deberta
+        # self.tokenizer = DebertaV2Tokenizer.from_pretrained('microsoft/deberta-v3-small')
+        # self.model = DebertaV2Model.from_pretrained('microsoft/deberta-v3-small')
+        
+        # Tiny_BERT embeddings   
         self.tokenizer = BertTokenizer.from_pretrained('google/bert_uncased_L-4_H-256_A-4')
         self.model = BertModel.from_pretrained('google/bert_uncased_L-4_H-256_A-4')
+        
         self.dimension_reducer = nn.Linear(self.model.config.hidden_size, output_dim)
         
+       
     @property
     def doc_ids(self):
         """
@@ -108,9 +116,7 @@ class BertEmbedding():
 
         inputs = self.tokenizer(self.remove_stopwords(text), return_tensors="pt", padding=True, truncation=True)
 
-        # # Get the actual length of input_ids
-        # input_length = inputs['input_ids'].size(1)
-
+        # TODO: Clean up (still needed?)
         # # Pad or truncate
         # if input_length < Nq:
         #     # Calculate the number of mask tokens to add
@@ -130,15 +136,21 @@ class BertEmbedding():
         outputs = self.model(**inputs)
         last_hidden_states = outputs.last_hidden_state
 
-        # Apply the linear layer to reduce dimension size before normalization
-        reduced_dimension_embedding = self.dimension_reducer(last_hidden_states)
+        # TODO: Clean up
+        # # Apply the linear layer to reduce dimension size before normalization
+        # reduced_dimension_embedding = self.dimension_reducer(last_hidden_states)
 
-        # Normalize the reduced embeddings
-        norm = torch.norm(reduced_dimension_embedding, p=2, dim=2, keepdim=True)
-        normalized_reduced_embedding = reduced_dimension_embedding / norm
-        return normalized_reduced_embedding.tolist()
+        # # Normalize the reduced embeddings
+        # norm = torch.norm(reduced_dimension_embedding, p=2, dim=2, keepdim=True)
+        # normalized_reduced_embedding = reduced_dimension_embedding / norm
 
+        # remove embeddings of special beginning and ending token:
+        word_embeddings = last_hidden_states[0, 1:-1, :]
 
+        
+        return word_embeddings
+
+    # refactor idea: write bert embeddings to numpy array here instead of to one big dict
     def get_bert_embeddings(self):
         """
         Generates BART embeddings for each term in the corpus, handling documents longer than the maximum sequence length by chunking.
@@ -146,9 +158,12 @@ class BertEmbedding():
         Returns:
             A dictionary where keys are document IDs and values are concatenated embeddings of chunks.
         """
-        embeddings = {}
+        doc_ids = []  # List to store document IDs
+        chunk_embeddings_list = []  # List to temporarily store embeddings for each document
+        
         max_length = 512  # Assuming 512 is the max length for BART
         for doc_id, document in self.corpus.items():
+            doc_ids.append(doc_id)
             # Ensure the document is not empty by appending a space if it is
             document = self.remove_stopwords(document)
 
@@ -162,21 +177,45 @@ class BertEmbedding():
                 inputs = self.tokenizer(chunk, return_tensors="pt", padding=True, truncation=True)
                 outputs = self.model(**inputs)
                 last_hidden_states = outputs.last_hidden_state
-                # Apply the linear layer to reduce dimension size
-                reduced_dimension_embedding = self.dimension_reducer(last_hidden_states)
-                chunk_embeddings.append(reduced_dimension_embedding)
+                # # Apply the linear layer to reduce dimension size
+                # reduced_dimension_embedding = self.dimension_reducer(last_hidden_states)
+                chunk_embeddings.append(last_hidden_states)
             
             # Concatenate embeddings from all chunks
-            concatenated_embeddings = torch.cat(chunk_embeddings, dim=1)
+            concatenated_embeddings = torch.cat(chunk_embeddings, dim=1)[0]
+            chunk_embeddings_list.append(concatenated_embeddings)
+
             # normaliize concatenated embeddings
 
-            # Calculate the Euclidean norm (magnitude) of the vector
-            magnitude = torch.norm(concatenated_embeddings, p=2, dim=2, keepdim=True)
-            # Normalize the vector by dividing by its magnitude
-            normalized_embeddings = concatenated_embeddings / magnitude
+            # # Calculate the Euclidean norm (magnitude) of the vector
+            # magnitude = torch.norm(concatenated_embeddings, p=2, dim=2, keepdim=True)
+            # # Normalize the vector by dividing by its magnitude
+            # normalized_embeddings = concatenated_embeddings / magnitude
 
-            embeddings[doc_id] = normalized_embeddings.tolist()
-        return embeddings
+        max_length = max(embedding.shape[0] for embedding in chunk_embeddings_list)
+
+        # Initialize a list to hold the padded embeddings
+        padded_embeddings_list = []
+
+        for embedding in chunk_embeddings_list:
+            # Calculate the padding length for the current embedding
+            padding_length = max_length - embedding.shape[0]
+            
+            # Check if padding is necessary
+            if padding_length > 0:
+                # Pad the embedding on the dimension that represents the sequence length (dim=0)
+                # We pad with zeros and do it on the "bottom" of the tensor (at the end of the sequence)
+                padded_embedding = torch.nn.functional.pad(embedding, (0, 0, 0, padding_length), "constant", 0)
+            else:
+                padded_embedding = embedding
+            
+            # Add the padded embedding to the list
+            padded_embeddings_list.append(padded_embedding)
+
+        # Now that all embeddings are of the same size, stack them
+        all_embeddings_tensor = torch.stack(padded_embeddings_list, dim=0)
+
+        return doc_ids, all_embeddings_tensor
     
     def remove_stopwords(self, text):
         """

@@ -5,12 +5,36 @@ import csv
 from scipy.sparse import csr_matrix
 
 
-def load_corpus_from_json_files(directory_path, k=1000):
+def load_corpus(index_dir, k):
+    """
+    Load a corpus from a directory of md files.
+
+    Args:
+        dir (str): Path to folder containing md files.
+        k (int): Number of documents to load.
+    """
+    corpus = {}
+    idx = 0
+    for filename in os.listdir(index_dir):
+        if filename.endswith(".md"):
+            if idx >= k:
+                return corpus
+            file_path = os.path.join(dir, filename)
+            with open(file_path, 'r') as file:
+                corpus[filename[:-3]] = file.read()
+            idx += 1
+        if idx % 5000 == 0:
+            print(f"Processing md files - n={idx}")
+    print(f"loaded {idx} documents")
+    return corpus
+
+
+def load_corpus_from_json_files(directory_path, k=200):
     corpus = {}
     idx = 0
     for filename in os.listdir(directory_path):
         if filename.endswith(".json"):
-            if idx > k:
+            if idx >= k:
                 return corpus
             file_path = os.path.join(directory_path, filename)
             with open(file_path, 'r') as file:
@@ -19,6 +43,7 @@ def load_corpus_from_json_files(directory_path, k=1000):
             idx += 1
         if idx % 5000 == 0:
             print(f"Processing jsons - n={idx}")
+    print(f"loaded {idx} documents")
     return corpus
 
 
