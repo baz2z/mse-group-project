@@ -34,7 +34,7 @@ def process_doc(content: bytes, doc_id: str):
     md_text = md(html_str, strip=["a", "img"])
     md_text = NEWLINE_PATTERN.sub("\n\n", md_text).strip()
 
-    if len(md_text) < 256:
+    if len(md_text) < 128:
         return ProcessedDoc(doc_id, md_text, None)
 
     lang = detector.detect_language_of(md_text)
@@ -57,10 +57,11 @@ def process_all():
         try:
             content = file.read_bytes()
             res = process_doc(content, doc_id)
-            (MD_DIR / res.fn).write_text(res.md_text, encoding="utf-8")
         except Exception as e:
             print(f"Error processing {doc_id}: {e}")
+            res = ProcessedDoc(doc_id, "", None)
 
+        (MD_DIR / res.fn).write_text(res.md_text, encoding="utf-8")
         pbar.update(1)
 
 
