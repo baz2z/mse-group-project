@@ -21,14 +21,17 @@ USER_AGENT = (
 )
 
 
-def get_seed_urls() -> list[URL]:
-    return list(
-        pd.read_json(BASE_DIR / "query_results.jsonl", lines=True)
-        .links.explode()
-        .apply(URL)
-        .dropna()
-        .unique()
+def get_seed_urls() -> set[URL]:
+    return set(
+        URL(url)
+        for url in pd.read_json(
+            BASE_DIR / "query_results.jsonl", lines=True
+        ).links.explode()
     )
+
+
+def get_allowed_domains() -> set[str]:
+    return set(url.host for url in get_seed_urls())
 
 
 def get_headers() -> dict[str, str]:
@@ -42,5 +45,6 @@ class CrawlerConfig:
     timeout: float = 10
     max_depth: int = 10
 
-    seed_urls: list[URL] = field(default_factory=get_seed_urls)
+    allowed_domains: set[str] = field(default_factory=get_allowed_domains)
+    seed_urls: set[URL] = field(default_factory=get_seed_urls)
     headers: dict[str, str] = field(default_factory=get_headers)

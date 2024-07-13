@@ -60,21 +60,23 @@ class Crawler:
         )
 
     @staticmethod
-    def is_url_valid(url: URL) -> bool:
-        return (
-            url.is_absolute_url
-            and url.scheme in {"http", "https"}
-            and bool(HOSTNAME_PATTERN.search(url.host))
-            and bool(TUBINGEN_PATTERN.search(unquote(str(url))))
-        )
-
-    @staticmethod
     def parse_html(content: bytes) -> html.HtmlElement:
         try:
             return html.fromstring(content)
         except ParserError:
             logger.debug("ParserError occurred while parsing HTML")
             return html.fromstring("<html></html>")
+
+    def is_url_valid(self, url: URL) -> bool:
+        return (
+            url.is_absolute_url
+            and url.scheme in {"http", "https"}
+            and (
+                url.host in self.config.allowed_domains
+                or bool(HOSTNAME_PATTERN.search(url.host))
+            )
+            and bool(TUBINGEN_PATTERN.search(unquote(str(url))))
+        )
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10))
     async def _get(self, url: URL) -> Response:
