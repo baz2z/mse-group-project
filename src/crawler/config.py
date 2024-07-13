@@ -9,10 +9,10 @@ assert HARD_DRIVE.exists(), "Please connect the hard drive used for the project.
 
 BASE_DIR = HARD_DRIVE / "mse"
 HTML_DIR = BASE_DIR / "html"
-MD_DIR = BASE_DIR / "md"
+TXT_DIR = BASE_DIR / "txt"
 
 HTML_DIR.mkdir(parents=True, exist_ok=True)
-MD_DIR.mkdir(parents=True, exist_ok=True)
+TXT_DIR.mkdir(parents=True, exist_ok=True)
 
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
