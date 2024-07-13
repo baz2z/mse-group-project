@@ -47,16 +47,16 @@ def pre_compute_bm25(embed, index_name, k, exist_ok=True):
 
 def create_colBERT(corpus_path, index_path, k, doc_ids=[], exist_ok=True):
 
-    path = f"dat/{index_path}_{k}"
+    path = f"dat/{index_path}"
     embeddings_exist = Path(f"{path}/").exists()
-    colbert = colBERT(corpus_path, index_path, doc_ids)
-    if exist_ok and colbert_exists:
-        print(f"colBERT file '{index_path}' found. Using pre-computed colBERT")
-        colbert = colBERT(index_path)
+    colbert = colBERT(corpus_path, path, doc_ids)
+    if exist_ok and embeddings_exist:
+        print(f"colBERT file '{path}' found. Using pre-computed colBERT")
+        colbert.load()
         return colbert
     
-    colbert = colBERT(corpus_path)
-    colbert.save(path)
+    colbert.create()
+    colbert.load()
     
     return colbert
 
@@ -88,12 +88,15 @@ def get_doc_url(doc_id, directory_path):
 def main_bert():
     start_time = time.time()
     k = 10 #  how many docs to filter through
-    corpus_path = "dat/crawled_docs/"
-    corpus = load_corpus_from_json_files(corpus_path, k)
-    
-    index_path = "index_bert"
-    bert = create_colBERT(corpus_path, index_path, k, ["0a1a5f1a7f5081adcb07c1f97ef77913"], exist_ok=False)
-    query = 'studiing in tuebingen'
+    corpus_path = "dat/crawled_test2/"  
+    index_path = "index_bert_docs"
+
+    doc_ids = [ "0a1a5f1a7f5081adcb07c1f97ef77913",  "0a1b6985dd586ec83d474a6371dc926e",  
+                "0a1e9d2ad6ff9b371b6955bcd19f96ae",  "0a1f82668cb5b821a5eb16bbf0270563",
+                "0a2baaaadff9030f3d5d6c858bd55124"]
+
+    bert = create_colBERT(corpus_path, index_path, k, doc_ids, exist_ok=False)
+    query = 'this text is about food'
     ranked_docs = bert.rank(query=query, top_k=5)
     
     print(f"Top 5 documents for query: {query}")
@@ -242,7 +245,6 @@ if __name__ == "__main__":
     main_bert()
     # main_bm25()
     # main_nli()
-    return
     start_time = time.time()
     
     index_dir = "dat/crawled_docs/"
@@ -252,14 +254,14 @@ if __name__ == "__main__":
     corpus_tue = load_corpus_from_json_files(index_dir, k_docs)
     url_mapping = load_url_from_json_files(index_dir, k_docs)
     
-    batch(
-        corpus=corpus_tue,
-        url_mapping=url_mapping,
-        batch_of_queries="dat/query_batch_file.txt",
-        results_path="dat/results.txt",
-        reranker="colBERT", # one of "colBERT" or "NLI"
-        n_bm25_docs=10,
-        )
+    # batch(
+    #     corpus=corpus_tue,
+    #     url_mapping=url_mapping,
+    #     batch_of_queries="dat/query_batch_file.txt",
+    #     results_path="dat/results.txt",
+    #     reranker="colBERT", # one of "colBERT" or "NLI"
+    #     n_bm25_docs=10,
+    #     )
     
     end_time = time.time()
     execution_time = end_time - start_time
