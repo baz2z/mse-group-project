@@ -45,16 +45,17 @@ def pre_compute_bm25(embed, index_name, k, exist_ok=True):
     return bm25
 
 
-def create_colBERT(corpus, index_name, k, exist_ok=True):
+def create_colBERT(corpus_path, index_path, k, doc_ids=[], exist_ok=True):
 
-    path = f"dat/{index_name}_{k}"
-    colbert_exists = Path(f"{path}.pkl").exists()
+    path = f"dat/{index_path}_{k}"
+    embeddings_exist = Path(f"{path}/").exists()
+    colbert = colBERT(corpus_path, index_path, doc_ids)
     if exist_ok and colbert_exists:
-        print(f"colBERT file '{index_name}_{k}.pkl' found. Using pre-computed colBERT")
-        colbert = colBERT.load(path)
+        print(f"colBERT file '{index_path}' found. Using pre-computed colBERT")
+        colbert = colBERT(index_path)
         return colbert
     
-    colbert = colBERT(corpus)
+    colbert = colBERT(corpus_path)
     colbert.save(path)
     
     return colbert
@@ -86,13 +87,13 @@ def get_doc_url(doc_id, directory_path):
 
 def main_bert():
     start_time = time.time()
-    k = 50 #  how many docs to filter through
+    k = 10 #  how many docs to filter through
     corpus_path = "dat/crawled_docs/"
     corpus = load_corpus_from_json_files(corpus_path, k)
     
-    colBERT_name = "colBERT_v4"
-    bert = create_colBERT(corpus, colBERT_name, k, exist_ok=False)
-    query = 'studing in tuebingen'
+    index_path = "index_bert"
+    bert = create_colBERT(corpus_path, index_path, k, ["0a1a5f1a7f5081adcb07c1f97ef77913"], exist_ok=False)
+    query = 'studiing in tuebingen'
     ranked_docs = bert.rank(query=query, top_k=5)
     
     print(f"Top 5 documents for query: {query}")

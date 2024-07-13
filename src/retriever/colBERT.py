@@ -37,20 +37,17 @@ class colBERT():
     computes relevance scores for documents given a query based on the tfidf approach.
     """
     
-    def __init__(self, corpus):
+    def __init__(self, corpus_path, index_path, doc_ids):
         """
         Initialize BM25 on given pre computed index.
         
         Args:
             path (str): The file path to the index.   
         """
-        self.ranker = 'colBERT'
-        self.corpus = corpus
-        self.text_embedding = BertEmbedding(corpus=corpus)
+        self.index_path = index_path
+        self.corpus_path = corpus_path
+        self.doc_ids = doc_ids
         self.bert_embeddings = None
-        self.doc_ids = None
-              
-        self.create_index()
 
     # TODO: Should not be static anymore since we are not laoding the entire class anymore
     @staticmethod
@@ -67,8 +64,13 @@ class colBERT():
     def save(self, filename):
         with open(f"{filename}.pkl", "wb") as fsave:
             pickle.dump(self, fsave, protocol=pickle.HIGHEST_PROTOCOL)
+
+    def create(self):
+        # BertEmbedding nur als klassenvariable wenn embeddings erzeugt werden
+        text_embedding = BertEmbedding(self.corpus_path, self.index_path)
+        self.create_index(text_embedding)
         
-    def create_index(self):
+    def create_index(self, text_embedding):
         
         # TODO:
         # Loop through corpus -> for (doc_id, doc_text) in self.corpus.items():
@@ -79,8 +81,8 @@ class colBERT():
         #    -> oder auch einfach nur text_embedding.get_single_bert_embedding(doc_text)?
         #  - save single embedding to pt file (see save_tensor function up top)
         #    -> name should be something like f"dat/{bert_index_name}/{doc_id}.pt"
-              
-        self.doc_ids, self.bert_embeddings =  self.text_embedding.get_bert_embeddings()
+        text_embedding.initiate_corpus()
+        self.doc_ids, self.bert_embeddings =  text_embedding.get_bert_embeddings()
 
     def vectorize_query(self, query):
         """

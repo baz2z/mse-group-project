@@ -73,7 +73,7 @@ class BagOfWordsTokenizer():
 
 class BertEmbedding():
     
-    def __init__(self, corpus=None, output_dim=100):
+    def __init__(self, corpus_path=None, index_path=None):
         """
         A class to create text embeddings.
         
@@ -81,8 +81,7 @@ class BertEmbedding():
             corpus (dict): A dictionary where the keys are document IDs and the values are the
                 corresponding documents.
         """
-        self.corpus = corpus
-        
+        self.corpus_path = corpus_path       
         self.stopwords = set(stopwords.words('english'))
         
         # deberta
@@ -93,7 +92,6 @@ class BertEmbedding():
         self.tokenizer = BertTokenizer.from_pretrained('google/bert_uncased_L-4_H-256_A-4')
         self.model = BertModel.from_pretrained('google/bert_uncased_L-4_H-256_A-4')
         
-        self.dimension_reducer = nn.Linear(self.model.config.hidden_size, output_dim)
         
        
     @property
@@ -158,6 +156,7 @@ class BertEmbedding():
         Returns:
             A dictionary where keys are document IDs and values are concatenated embeddings of chunks.
         """
+        self.initiate_corpus()
         doc_ids = []  # List to store document IDs
         chunk_embeddings_list = []  # List to temporarily store embeddings for each document
         
@@ -183,6 +182,7 @@ class BertEmbedding():
             
             # Concatenate embeddings from all chunks
             concatenated_embeddings = torch.cat(chunk_embeddings, dim=1)[0]
+
             chunk_embeddings_list.append(concatenated_embeddings)
 
             # normaliize concatenated embeddings
@@ -215,6 +215,8 @@ class BertEmbedding():
         # Now that all embeddings are of the same size, stack them
         all_embeddings_tensor = torch.stack(padded_embeddings_list, dim=0)
 
+        # now save each embedding to a tensor in self.index_path
+
         return doc_ids, all_embeddings_tensor
     
     def remove_stopwords(self, text):
@@ -230,3 +232,16 @@ class BertEmbedding():
         tokens = text.split()
         tokens = [token for token in tokens if token not in self.stopwords]
         return ' '.join(tokens)
+
+    def initiate_corpus(self):
+        """
+        Load the corpus from the given path.
+        """
+        self.corpus = load_corpus_from_json_files(self.corpus_path)
+
+    def save_tensor(tensor, file_path, compress=False):
+        if compress:
+            with gzip.open(file_path + '.gz', 'wb') as f:
+                torch.save(tensor, f)
+        else:
+            torch.save(tensor, file_path)
