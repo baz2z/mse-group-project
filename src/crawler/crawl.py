@@ -21,6 +21,8 @@ from crawler.types import Priority, ScrapingRequest, Status
 pd.options.mode.chained_assignment = None
 
 TUBINGEN_PATTERN = re.compile(r"t(ü|ue|u)binge([nr])", re.IGNORECASE)
+ENGLISH_PATTERN = re.compile(r"^en([-_](us|gb|de))?$", re.IGNORECASE)
+HOSTNAME_PATTERN = re.compile(r"\S+\.(de|com|org|net)$")
 
 
 class Crawler:
@@ -53,12 +55,18 @@ class Crawler:
     @staticmethod
     def is_english(tree: html.HtmlElement) -> bool:
         return any(
-            lang.lower().strip().startswith("en") for lang in tree.xpath("//html/@lang")
+            bool(ENGLISH_PATTERN.search(lang.strip()))
+            for lang in tree.xpath("//html/@lang")
         )
 
     @staticmethod
     def is_url_valid(url: URL) -> bool:
-        return url.is_absolute_url and bool(TUBINGEN_PATTERN.search(unquote(str(url))))
+        return (
+            url.is_absolute_url
+            and url.scheme in {"http", "https"}
+            and bool(HOSTNAME_PATTERN.search(url.host))
+            and bool(TUBINGEN_PATTERN.search(unquote(str(url))))
+        )
 
     @staticmethod
     def parse_html(content: bytes) -> html.HtmlElement:
@@ -66,7 +74,7 @@ class Crawler:
             return html.fromstring(content)
         except ParserError:
             logger.debug("ParserError occurred while parsing HTML")
-            return html.HtmlElement()
+            return html.fromstring("<html></html>")
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10))
     async def _get(self, url: URL) -> Response:
@@ -95,7 +103,7 @@ class Crawler:
             yield {
                 "doc_id": doc_id,
                 "url": str(url),
-                "domain": url.netloc,
+                "domain": url.host,
                 "depth": 0,
                 "priority": Priority.high.value,
                 "status": "pending",
@@ -104,7 +112,7 @@ class Crawler:
             }
 
     def add_to_frontier(
-            self, url: URL, priority: Priority, depth: int, root: str
+        self, url: URL, priority: Priority, depth: int, root: str
     ) -> None:
         doc_id = self.create_id_for_url(url)
 
@@ -113,7 +121,7 @@ class Crawler:
         except KeyError:
             self.frontier.loc[doc_id] = {
                 "url": str(url),
-                "domain": url.netloc,
+                "domain": url.host,
                 "depth": depth,
                 "priority": priority.value,
                 "status": Status.pending.value,
@@ -153,7 +161,7 @@ class Crawler:
         ]
 
     def add_new_links_to_frontier(
-            self, request: ScrapingRequest, response: Response
+        self, request: ScrapingRequest, response: Response
     ) -> None:
         tree = self.parse_html(response.content)
         priority = Priority.high if self.is_english(tree) else Priority.low
@@ -172,7 +180,7 @@ class Crawler:
         if url.is_relative_url:
             url = base_url.join(url)
 
-        url = URL(scheme=url.scheme, netloc=url.netloc, raw_path=url.raw_path)
+        url = url.copy_with(query=None, fragment=None, params=None)
         return url if self.is_url_valid(url) else None
 
     def mark_status(self, doc_id: str, status: Status) -> None:
@@ -219,9 +227,6 @@ class Crawler:
         pbar.close()
 
     async def run(self) -> None:
-        """
-        Wrapper function to run the crawler
-        """
         try:
             await self._run()
         finally:
