@@ -77,6 +77,12 @@ def get_doc_url(doc_id, directory_path):
     # Construct the full path to the JSON file
     file_path = os.path.join(directory_path, f"{doc_id}.json")
     
+    # Check if the file exists
+    if not os.path.exists(file_path):
+        # Handle the case where the file does not exist
+        # For example, return None or raise an exception
+        return None
+    
     # Open and load the JSON file
     with open(file_path, 'r') as file:
         data = json.load(file)
@@ -91,7 +97,7 @@ def main_bert():
     corpus_path = "dat/crawled_test2/"  
     index_path = "index_bert_docs"
 
-    doc_ids = [ "0a1a5f1a7f5081adcb07c1f97ef77913",  "0a1b6985dd586ec83d474a6371dc926e",  
+    doc_ids = [ "bla",  "0a1b6985dd586ec83d474a6371dc926e",  
                 "0a1e9d2ad6ff9b371b6955bcd19f96ae",  "0a1f82668cb5b821a5eb16bbf0270563",
                 "0a2baaaadff9030f3d5d6c858bd55124"]
 

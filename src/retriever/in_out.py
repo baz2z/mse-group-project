@@ -29,7 +29,7 @@ def load_corpus(index_dir, k):
     return corpus
 
 
-def load_corpus_from_json_files(directory_path, k=200):
+def load_corpus_from_json_files(directory_path, k=100000):
     corpus = {}
     idx = 0
     for filename in os.listdir(directory_path):
