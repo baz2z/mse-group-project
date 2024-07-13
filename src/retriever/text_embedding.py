@@ -164,16 +164,21 @@ class BertEmbedding():
         max_length = 512  # Assuming 512 is the max length for BART
 
 
-        # Step 1: Calculate the maximum number of tokens across all documents
+      # Step 1: Adjusted to chunk documents before calculating max tokens
         max_tokens = 0
         for doc_id, document in self.corpus.items():
             document = self.remove_stopwords(document)
             if not document:
                 document = " "
-            inputs = self.tokenizer(document, return_tensors="pt", padding=True, truncation=True)
-            num_tokens = inputs.input_ids.size(1)
-            if num_tokens > max_tokens:
-                max_tokens = num_tokens
+            # Chunk the document
+            chunks = [document[i:i+max_length] for i in range(0, len(document), max_length)]
+            total_tokens = 0
+            for chunk in chunks:
+                inputs = self.tokenizer(chunk, return_tensors="pt", padding=True, truncation=True)
+                num_tokens = inputs.input_ids.size(1)
+                total_tokens += num_tokens  # Sum tokens for all chunks
+            if total_tokens > max_tokens:
+                max_tokens = total_tokens  # Update max_tokens if current document has more tokens
 
         
         # Step 2: Process each document, pad if necessary, and save
@@ -196,6 +201,7 @@ class BertEmbedding():
                 padded_embedding = torch.nn.functional.pad(concatenated_embeddings, (0, 0, 0, padding_length), "constant", 0)
             else:
                 padded_embedding = concatenated_embeddings
+            print(padded_embedding.shape)
 
             # Save the padded_embedding tensor to a file named after the doc_id
             tensor_filename = f"{self.index_path}/{doc_id}.pt"  # Assuming self.index_path is the directory where you want to save
