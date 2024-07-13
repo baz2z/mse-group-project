@@ -153,7 +153,9 @@ class colBERT():
         sim_scores_tensor = torch.stack(sim_scores_per_doc)
         # Sum over the documents
         sum_over_docs = torch.sum(sim_scores_tensor, dim=0)
-        top_k_scores, top_k_indices = torch.topk(sum_over_docs, k=top_k)
+        # Ensure top_k does not exceed the number of documents
+        adjusted_top_k = min(top_k, sum_over_docs.size(0))
+        top_k_scores, top_k_indices = torch.topk(sum_over_docs, k=adjusted_top_k)
 
         return top_k_scores, top_k_indices
     

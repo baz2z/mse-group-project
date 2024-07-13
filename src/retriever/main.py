@@ -120,7 +120,7 @@ def main_bm25():
     
     # Load or create precomputed BM25 scores (tf and idf scores)
     bm25_name = "bm25"
-    bm25 = pre_compute_bm25(embed, bm25_name, k, exist_ok=True)
+    bm25 = pre_compute_bm25(embed, bm25_name, k, exist_ok=False)
     
     # Query tokenization
     query = 'hölderlin'
@@ -164,7 +164,7 @@ def retrieve(corpus, url_mapping, query, reranker="DebertaV3", n_bm25_docs=100):
     query_tokenized = embed.tokenize(query)
     
     bm25_name = "bm25"
-    bm25 = pre_compute_bm25(embed, bm25_name, len(doc_ids), exist_ok=True)
+    bm25 = pre_compute_bm25(embed, bm25_name, len(doc_ids), exist_ok=False)
 
     # Retrieve top n documents for the given query
     bm25_top_n = bm25.retrieve_top_n(query_tokenized, doc_ids, n=n_bm25_docs)
@@ -245,7 +245,7 @@ if __name__ == "__main__":
     start_time = time.time()
     
     index_dir = "dat/crawled_docs/"
-    k_docs = 15000
+    k_docs = 100
     
     # Load k crawled documents 
     corpus_tue = load_corpus_from_json_files(index_dir, k_docs)
