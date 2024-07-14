@@ -14,7 +14,7 @@ from text_embedding import BagOfWordsTokenizer, BertEmbedding
 from bm25 import BM25
 from colBERT import colBERT
 from nli import DebertaV3
-from in_out import load_corpus_from_json_files, load_url_from_json_files
+from in_out import load_corpus_from_json_files, load_url_from_json_files, load_corpus, load_url_mapping_from_csv
 
 
 def pre_compute_bm25(embed, index_name, k, exist_ok=True):
@@ -34,7 +34,7 @@ def pre_compute_bm25(embed, index_name, k, exist_ok=True):
     path = f"dat/{index_name}_{k}"
     bm25_exists = Path(f"{path}.pkl").exists()
     if exist_ok and bm25_exists:
-        print(f"\n\nBM25 file '{index_name}_{k}.pkl' found. Using pre-computed BM25")
+        print(f"\nBM25 file '{index_name}_{k}.pkl' found. Using pre-computed BM25")
         bm25 = BM25.load(path)
         return bm25
     
@@ -45,13 +45,15 @@ def pre_compute_bm25(embed, index_name, k, exist_ok=True):
     return bm25
 
 
-def create_colBERT(corpus_path, index_path, k, doc_ids=[], exist_ok=True):
+def create_colBERT(corpus_path, index_path, doc_ids=[], exist_ok=True):
 
     path = f"dat/{index_path}"
     embeddings_exist = Path(f"{path}/").exists()
+    
     colbert = colBERT(corpus_path, path, doc_ids)
+    
     if exist_ok and embeddings_exist:
-        print(f"colBERT file '{path}' found. Using pre-computed colBERT")
+        print(f"\ncolBERT embeddings found at {path}. Using pre-computed colBERT")
         colbert.load()
         return colbert
     
@@ -61,53 +63,26 @@ def create_colBERT(corpus_path, index_path, k, doc_ids=[], exist_ok=True):
     return colbert
 
 
-@contextmanager
-def managed_colbert(*args, **kwargs):
-    colbert = create_colBERT(*args, **kwargs)
-    try:
-        yield colbert
-    finally:
-        # Clear any internal collections or resources
-        colbert.bert_embeddings = None  # free up memory
-        del colbert
-        gc.collect()
-        
-    
-def get_doc_url(doc_id, directory_path):
-    # Construct the full path to the JSON file
-    file_path = os.path.join(directory_path, f"{doc_id}.json")
-    
-    # Check if the file exists
-    if not os.path.exists(file_path):
-        # Handle the case where the file does not exist
-        # For example, return None or raise an exception
-        return None
-    
-    # Open and load the JSON file
-    with open(file_path, 'r') as file:
-        data = json.load(file)
-    
-    # Return the value of the "url" key
-    return data["url"]
-
-
 def main_bert():
     start_time = time.time()
-    k = 10 #  how many docs to filter through
-    corpus_path = "dat/crawled_test2/"  
-    index_path = "index_bert_docs"
-
-    doc_ids = [ "bla",  "0a1b6985dd586ec83d474a6371dc926e",  
-                "0a1e9d2ad6ff9b371b6955bcd19f96ae",  "0a1f82668cb5b821a5eb16bbf0270563",
-                "0a2baaaadff9030f3d5d6c858bd55124"]
-
-    bert = create_colBERT(corpus_path, index_path, k, doc_ids, exist_ok=False)
-    query = 'this text is about food'
+    k = 200 #  how many docs to filter through
+    corpus_path = "dat/eng_subset/"  
+    mapping_path = "dat/eng_doc_id_mapping.csv"
+    url_mapping = load_url_mapping_from_csv(mapping_path)
+    
+    index_folder = "index_bert_docs"
+    doc_ids = ['9b800db5aec8739c6e714182f06628fc', '689d133e430a98a71cdbedd49e3b45bc', '92076b1cf6097ae822d821e46fb84fe0', 
+               '458ec03ec352ab4c0964b2416219c200', '1883368a03590035284d4b98590de999', '1d78b99d44cfbe741f47d35d943a138d', 
+               '2ff8d17df1f12538c888788fa188253b', '3d737ae492c4c07ffa103c8ce12ba771', '310ad012b83cd9a71eb3c08dc8b5bdb6', 
+               '34d3e4d5d2b95fe943d5595ab7ee3a84']
+    
+    query = 'Amazon vouchers'
+    bert = create_colBERT(corpus_path, index_folder, k, doc_ids, exist_ok=True)
     ranked_docs = bert.rank(query=query, top_k=5)
     
     print(f"Top 5 documents for query: {query}")
     for doc_id, score in ranked_docs:
-        print(f"Document ID: {doc_id}, Score: {score:.4f}, URL: {get_doc_url(doc_id, corpus_path)}")    
+        print(f"Document ID: {doc_id}, Score: {score:.4f}, URL: {url_mapping.get(doc_id)}")    
     
     end_time = time.time()
     execution_time = end_time - start_time
@@ -116,21 +91,21 @@ def main_bert():
 def main_bm25():
     
     # Load k crawled documents 
-    k = 15000
-    directory_path = "dat/crawled_docs/"
-    # TODO: Find more efficient way to load the corpus and url mapping
-    corpus_tue = load_corpus_from_json_files(directory_path, k)
-    url_mapping = load_url_from_json_files(directory_path, k)
+    k = 20993
+    directory_path = "dat/index/"
+    mapping_path = "dat/index_mapping.csv"
+    corpus = load_corpus(directory_path, k)
+    url_mapping = load_url_mapping_from_csv(mapping_path)
 
     start_time = time.time()
 
     # Init tokenization util on given corpus
-    embed = BagOfWordsTokenizer(corpus=corpus_tue)
+    embed = BagOfWordsTokenizer(corpus=corpus)
     doc_ids = embed.doc_ids
     
     # Load or create precomputed BM25 scores (tf and idf scores)
     bm25_name = "bm25"
-    bm25 = pre_compute_bm25(embed, bm25_name, k, exist_ok=False)
+    bm25 = pre_compute_bm25(embed, bm25_name, k, exist_ok=True)
     
     # Query tokenization
     query = 'hölderlin'
@@ -167,14 +142,16 @@ def main_nli():
     print(f"Execution time: {execution_time} seconds")
     
 
-def retrieve(corpus, url_mapping, query, reranker="DebertaV3", n_bm25_docs=100):
+def retrieve(corpus_path, corpus, url_mapping, query, reranker="NLI", 
+             n_bm25_docs=100, bert_index_dir = "bert_embeddings"):
     
+    print("\n\nQuery: ", query)
     embed = BagOfWordsTokenizer(corpus=corpus)
     doc_ids = embed.doc_ids
     query_tokenized = embed.tokenize(query)
     
-    bm25_name = "bm25"
-    bm25 = pre_compute_bm25(embed, bm25_name, len(doc_ids), exist_ok=False)
+    bm25_name = "bm25_eng"
+    bm25 = pre_compute_bm25(embed, bm25_name, len(doc_ids), exist_ok=True)
 
     # Retrieve top n documents for the given query
     bm25_top_n = bm25.retrieve_top_n(query_tokenized, doc_ids, n=n_bm25_docs)
@@ -189,16 +166,16 @@ def retrieve(corpus, url_mapping, query, reranker="DebertaV3", n_bm25_docs=100):
     url_mapping_top_n = {doc_id: url_mapping[doc_id] for doc_id in bm25_top_n_doc_ids}
 
     if reranker == "NLI":
-        print("\n\nReranking with DebertaV3")
+        print("\n\nReranking with DebertaV3 (NLI)")
         deberta = DebertaV3(corpus_top_n)
         top_n = deberta.rank(query, top_k=5)
     if reranker == "colBERT":
         print("\n\nReranking with colBERT")
         colbert_name = "colBERT_v4"
-        with managed_colbert(
-            corpus_top_n, colbert_name, len(corpus_top_n), exist_ok=False
-            ) as colbert:
-            top_n = colbert.rank(query, top_k=5)
+        
+        colbert = create_colBERT(corpus_path, bert_index_dir, k, doc_ids, exist_ok=True)
+        ranked_docs = colbert.rank(query=query, top_k=5)
+    
         # colbert = create_colBERT(corpus_top_n, colbert_name, len(corpus_top_n), exist_ok=False)
         # top_n = colbert.rank(query, top_k=5)
         # colbert.bert_embeddings = None # free up memory
@@ -212,19 +189,26 @@ def retrieve(corpus, url_mapping, query, reranker="DebertaV3", n_bm25_docs=100):
 
 def batch(
     corpus, 
+    corpus_path,
     url_mapping, 
     batch_of_queries, 
     results_path,
-    reranker="DebertaV3",
+    reranker="NLI",
     n_bm25_docs=100,
     ):
+    synonyms_tue = ["tuebingen", "tübingen", "Tuebingen", "Tübingen"]
+    
     # Load queries from the query batch file
     with open(batch_of_queries, 'r') as file:
         queries = file.readlines()
         queries = [query.strip() for query in queries]
-        # add "tuebingen" to each query
-        queries = [query + " tuebingen" for query in queries]
-    
+        # add "tuebingen" to each query if not already present else original query
+        queries = [
+            query + " tuebingen" 
+            if not any(synonym in query for synonym in synonyms_tue) 
+            else query for query in queries
+            ]
+        
     with open(results_path, 'w') as results_file:
             results_file.write("query\tdocument\turl\tscore\n")
         
@@ -234,6 +218,7 @@ def batch(
             # Get the top n documents for each query
             top_n, url_mapping_top_n = retrieve(
                 corpus=corpus,
+                corpus_path=corpus_path,
                 url_mapping=url_mapping,
                 query=query,
                 reranker=reranker,
@@ -248,26 +233,29 @@ def batch(
         
         
 if __name__ == "__main__":
-    main_bert()
+    # main_bert()
     # main_bm25()
     # main_nli()
+    
     start_time = time.time()
     
-    index_dir = "dat/crawled_docs/"
-    k_docs = 100
+    index_dir = "dat/index/"
+    index_mapping = "dat/index_mapping.csv"
+    k_docs = 20993
     
     # Load k crawled documents 
-    corpus_tue = load_corpus_from_json_files(index_dir, k_docs)
-    url_mapping = load_url_from_json_files(index_dir, k_docs)
+    corpus_tue = load_corpus(index_dir, k_docs)
+    url_mapping = load_url_mapping_from_csv(index_mapping)
     
-    # batch(
-    #     corpus=corpus_tue,
-    #     url_mapping=url_mapping,
-    #     batch_of_queries="dat/query_batch_file.txt",
-    #     results_path="dat/results.txt",
-    #     reranker="colBERT", # one of "colBERT" or "NLI"
-    #     n_bm25_docs=10,
-    #     )
+    batch(
+        corpus=corpus_tue,
+        corpus_path=index_dir,
+        url_mapping=url_mapping,
+        batch_of_queries="dat/query_batch_file.txt",
+        results_path="dat/results.txt",
+        reranker="NLI", # one of "colBERT" or "NLI"
+        n_bm25_docs=100,
+        )
     
     end_time = time.time()
     execution_time = end_time - start_time
