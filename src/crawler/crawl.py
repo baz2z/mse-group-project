@@ -157,7 +157,8 @@ class Crawler:
                 "updated": now,
                 "root": doc_id,
                 "random_sort_key": random.random(),
-                "features_tubingen": True,
+                "features_tubingen": False,
+                "features_english": False,
             }
 
     def add_to_frontier(
@@ -180,7 +181,8 @@ class Crawler:
                 "updated": now,
                 "root": root,
                 "random_sort_key": random.random(),
-                "features_tubingen": True,
+                "features_tubingen": False,
+                "features_english": False,
             }
             return None
 
@@ -221,12 +223,13 @@ class Crawler:
     ) -> None:
         tree = self.parse_html(content=response.content)
         if not bool(TUBINGEN_PATTERN.search(tree.text_content())):
-            self.update_doc(request.doc_id, features_tubingen=False)
             return None
 
         if self.is_english(tree=tree):
             priority = Priority.high
+            self.update_doc(request.doc_id, features_tubingen=True, features_english=True)
         else:
+            self.update_doc(request.doc_id, features_tubingen=True)
             priority = Priority.low
             url_en = response.url.copy_with(path="/en", query=None, fragment=None)
             if self.is_url_valid(url_en):
