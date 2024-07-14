@@ -18,10 +18,16 @@ const SearchComponent = () => {
       setLoading(true); // Set loading to true before making the request
       setResults([]); // Clear the previous search results (if any
       console.log('Searching for:', query);
-      const response = await axios.get(`/api/search?query=${query}`);
+      // nextjs api route call
+      // const response = await axios.get(`/api/search?query=${query}`);
+      // fast api route call
+      const response = await axios.get(`http://localhost:8000/search`, {
+        params: { query }
+      });
+      console.log("response", response);
       // Simulate 1 second delay with setTimeout
       setTimeout(() => {
-        setResults(response.data); // Assuming the search results are returned in response.data
+        setResults(response.data.results); // Assuming the search results are returned in response.data
         setLoading(false); // Set loading to false after results are fetched
       }, 2000);
     } catch (error) {

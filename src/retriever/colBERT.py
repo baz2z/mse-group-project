@@ -12,7 +12,7 @@ from pathlib import Path
 sys.path.insert(0, Path(__file__).resolve().parents[1])
 
 # internal imports
-from text_embedding import BertEmbedding
+from retriever.text_embedding import BertEmbedding
 
 
 def save_tensor(tensor, file_path, compress=False):
