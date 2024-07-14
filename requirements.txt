@@ -1,0 +1,9 @@
+tqdm
+torch
+nltk
+transformers
+scipy
+
+# backend/requirements.txt
+fastapi
+fastapi-cors
