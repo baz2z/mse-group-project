@@ -104,13 +104,16 @@ class Crawler:
             for lang in tree.xpath("//html/@lang")
         )
 
-    @staticmethod
-    def is_url_valid(url: URL) -> bool:
-        return (
-            url.is_absolute_url
-            and url.scheme in {"http", "https"}
-            and not any(d.search(url.host) for d in DENIED_DOMAINS)
-        )
+    def is_url_valid(self, url: URL) -> bool:
+        try:
+            return (
+                url.is_absolute_url
+                and url.scheme in {"http", "https"}
+                and not any(d.search(url.host) for d in DENIED_DOMAINS)
+            )
+        except Exception as e:
+            self.logger.debug(f"Invalid URL: {url}, {e}")
+            return False
 
     def parse_html(self, content: bytes) -> html.HtmlElement:
         try:

@@ -5,25 +5,62 @@ from bs4 import BeautifulSoup
 from lingua import Language, LanguageDetectorBuilder
 from tqdm import tqdm
 
-from crawler.config import BASE_DIR, HTML_DIR, TXT_DIR
+from crawler.config import HARD_DRIVE
 
-EXCLUDE_TAGS = {
+BASE_DIR = HARD_DRIVE / "mse_latest"
+
+detector = LanguageDetectorBuilder.from_all_languages().build()
+
+exclude_tags = {
     "script",
     "style",
-    "head",
     "header",
-    "meta",
-    "link",
-    "noscript",
-    "iframe",
-    "nav",
     "footer",
     "aside",
+    "nav",
+    "form",
+    "iframe",
+    "noscript",
+    "link",
+    "meta",
+    "input",
+    "button",
+    "select",
+    "textarea",
+    "option",
+    "datalist",
+    "output",
+    "canvas",
+    "svg",
+    "object",
+    "embed",
+    "audio",
+    "video",
+    "source",
+    "track",
+    "map",
+    "area",
+    "applet",
+    "param",
+    "col",
+    "colgroup",
+    "thead",
+    "tfoot",
+    "tbody",
+    "th",
+    "tr",
+    "td",
+    "caption",
+    "figure",
+    "figcaption",
     "a",
     "img",
 }
+include_tags = {"title", "h1", "h2", "h3", "h4", "h5", "h6", "p"}
 
-detector = LanguageDetectorBuilder.from_all_languages().build()
+HTML_DIR = HARD_DRIVE / "mse_latest" / "html"
+TXT_DIR = HARD_DRIVE / "mse_latest" / "txt"
+TXT_DIR.mkdir(parents=True, exist_ok=True)
 
 
 class ProcessedDoc(NamedTuple):
@@ -47,12 +84,15 @@ def process_doc(content: bytes, doc_id: str):
     html_content = content.decode("utf-8", errors="ignore")
     soup = BeautifulSoup(html_content, "html.parser")
 
-    for tag in soup.find_all(EXCLUDE_TAGS):
+    for tag in soup.find_all(exclude_tags):
         tag.decompose()
 
-    text_content = soup.get_text(strip=True, separator=" ")
-    text_content = " ".join(text_content.split())
-    if len(text_content) < 128:
+    text_content = "\n\n".join(
+        " ".join(p.get_text().split())
+        for p in soup.find_all(include_tags)
+        if len(p.get_text().split()) > 3
+    )
+    if len(text_content.split()) < 32:
         return ProcessedDoc(doc_id, text_content, None)
 
     lang = detector.detect_language_of(text_content)
@@ -64,13 +104,15 @@ def txt_exists(doc_id: str) -> bool:
 
 
 def process_all():
-    mappings = pd.read_csv(BASE_DIR / "20240713030800.csv").query(
-        "status == 'completed'"
+    mappings = pd.read_csv(BASE_DIR / "latest.csv").query(
+        "status == 'completed' and features_tubingen"
     )
+
     for doc_id in tqdm(mappings.doc_id.unique()):
         fn = HTML_DIR / f"{doc_id}.html"
+
         if not fn.exists():
-            print(f"File {fn} does not exist")
+            print(f"File {fn} does not exist.")
             continue
 
         if txt_exists(doc_id):
