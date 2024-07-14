@@ -1,6 +1,7 @@
 import asyncio
 import hashlib
 import logging
+import random
 import re
 from typing import Iterator
 
@@ -148,6 +149,7 @@ class Crawler:
                 "created": now,
                 "updated": now,
                 "root": doc_id,
+                "random_sort_key": random.random(),
             }
 
     def add_to_frontier(
@@ -168,6 +170,7 @@ class Crawler:
                 "created": now,
                 "updated": now,
                 "root": root,
+                "random_sort_key": random.random(),
             }
             return None
 
@@ -188,7 +191,7 @@ class Crawler:
                 "status == 'pending' and depth < @self.config.max_depth"
             )
             .sort_values(
-                ["priority", "depth", "created"], ascending=[False, True, True]
+                ["priority", "depth", "random_sort_key"], ascending=[False, True, True]
             )
             .drop_duplicates(subset=["domain"], keep="first")
             .head(self.config.batch_size)
@@ -271,6 +274,7 @@ class Crawler:
     async def _run(self) -> None:
         pbar = tqdm(total=None)
         while req_batch := self.fetch_next_doc_batch():
+            pbar.set_description(f"Fetching {len(req_batch)} URLs")
             responses = await asyncio.gather(
                 *(self.fetch_response(r) for r in req_batch)
             )
@@ -302,5 +306,5 @@ class Crawler:
 
 
 if __name__ == "__main__":
-    c = Crawler()
+    c = Crawler("latest")
     asyncio.run(c.run())
