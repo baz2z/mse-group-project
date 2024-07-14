@@ -30,7 +30,7 @@ def get_headers() -> dict[str, str]:
 @dataclass(frozen=True)
 class CrawlerConfig:
     DIR: Path = HARD_DRIVE
-    batch_size: int = 256
+    batch_size: int = 512
     max_depth: int = 10
     timeout: float = 10
     seed_urls: set[URL] = field(default_factory=get_seed_urls)

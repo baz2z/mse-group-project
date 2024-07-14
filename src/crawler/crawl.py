@@ -21,6 +21,16 @@ pd.options.mode.chained_assignment = None
 
 TUBINGEN_PATTERN = re.compile(r"t(ü|ue|u)binge([nr])", re.IGNORECASE)
 ENGLISH_PATTERN = re.compile(r"^en([-_](us|gb|de))?$", re.IGNORECASE)
+DENIED_DOMAINS = {
+    re.compile(r"(?!en|de)\.wiki\w*\.org"),
+    re.compile(r"web.archive.org"),
+    re.compile(r"facebook.com"),
+    re.compile(r"twitter.com"),
+    re.compile(r"youtube.com"),
+    re.compile(r"instagram.com"),
+    re.compile(r"linkedin.com"),
+    re.compile(r"reddit.com"),
+}
 
 
 class Crawler:
@@ -28,7 +38,7 @@ class Crawler:
         self.run_id: str = run_id or pd.Timestamp.now().strftime("%Y%m%d%H%M%S")
         self.config: CrawlerConfig = config or CrawlerConfig()
 
-        self.base_dir = config.DIR / f"mse_{self.run_id}"
+        self.base_dir = self.config.DIR / f"mse_{self.run_id}"
         self.html_dir = self.base_dir / "html"
         self.html_dir.mkdir(parents=True, exist_ok=True)
 
@@ -66,7 +76,11 @@ class Crawler:
 
     @staticmethod
     def is_url_valid(url: URL) -> bool:
-        return url.is_absolute_url and url.scheme in {"http", "https"}
+        return (
+            url.is_absolute_url
+            and url.scheme in {"http", "https"}
+            and not any(d.search(url.host) for d in DENIED_DOMAINS)
+        )
 
     def parse_html(self, content: bytes) -> html.HtmlElement:
         try:
@@ -98,6 +112,9 @@ class Crawler:
 
     def convert_seed_to_frontier(self) -> Iterator[dict[str, any]]:
         for url in self.config.seed_urls:
+            if not self.is_url_valid(url):
+                continue
+
             doc_id = self.create_id_for_url(url)
             now = pd.Timestamp.now()
             yield {
