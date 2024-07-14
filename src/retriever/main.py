@@ -10,11 +10,11 @@ sys.path.insert(0, Path(__file__).resolve().parents[1])
 print(Path(__file__).resolve().parents[1])
 
 # internal imports:
-from text_embedding import BagOfWordsTokenizer, BertEmbedding
-from bm25 import BM25
-from colBERT import colBERT
-from nli import DebertaV3
-from in_out import load_corpus_from_json_files, load_url_from_json_files, load_corpus, load_url_mapping_from_csv
+from retriever.text_embedding import BagOfWordsTokenizer, BertEmbedding
+from retriever.bm25 import BM25
+from retriever.colBERT import colBERT
+from retriever.nli import DebertaV3
+from retriever.in_out import load_corpus_from_json_files, load_url_from_json_files, load_corpus, load_url_mapping_from_csv
 
 
 def pre_compute_bm25(embed, index_name, k, exist_ok=True):
@@ -185,6 +185,20 @@ def retrieve(corpus_path, corpus, url_mapping, query, reranker="NLI",
         print(f"Document ID: {doc_id}, Score: {score:.4f}, URL: {url_mapping_top_n.get(doc_id)}")
     
     return top_n, url_mapping_top_n
+
+def mocked_retrieve(query):
+    return [
+      {
+        'link': 'https://uni-tuebingen.de/',
+        'title': 'Example Page 1',
+        'abstract': 'This is a summary of example page 1.',
+      },
+      {
+        'link': 'https://www.tuebingen-info.de',
+        'title': 'Example Page 2',
+        'abstract': 'This is a summary of example page 2.',
+      },
+    ]
 
 
 def batch(

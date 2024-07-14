@@ -13,10 +13,11 @@ from nltk.stem import PorterStemmer
 from transformers import BertTokenizer, BertModel
 from transformers import DebertaV2Tokenizer, DebertaV2Model
 
-# internal imports
-from in_out import load_corpus_from_json_files, load_corpus
-
 sys.path.insert(0, Path(__file__).resolve().parents[1])
+
+# internal imports
+from retriever.in_out import load_corpus_from_json_files, load_corpus
+
 
 
 class BagOfWordsTokenizer():
