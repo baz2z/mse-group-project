@@ -55,6 +55,10 @@ class Crawler:
         return self._client
 
     @staticmethod
+    def clean_url(url: URL) -> URL:
+        return url.copy_with(query=None, fragment=None, params=None)
+
+    @staticmethod
     def create_id_for_url(url: URL) -> str:
         return hashlib.md5(str(url).encode()).hexdigest()
 
@@ -106,12 +110,13 @@ class Crawler:
             self.logger.debug("Creating a new frontier")
             return (
                 pd.DataFrame(self.convert_seed_to_frontier())
-                .drop_duplicates(subset=["doc_id"])
+                .drop_duplicates(subset=["doc_id"], keep="first")
                 .set_index("doc_id")
             )
 
     def convert_seed_to_frontier(self) -> Iterator[dict[str, any]]:
-        for url in self.config.seed_urls:
+        for _url in self.config.seed_urls:
+            url = self.clean_url(_url)
             if not self.is_url_valid(url):
                 continue
 
@@ -221,7 +226,7 @@ class Crawler:
         if url.is_relative_url:
             url = base_url.join(url)
 
-        url = url.copy_with(query=None, fragment=None, params=None)
+        url = self.clean_url(url)
         return url if self.is_url_valid(url) else None
 
     def update_doc(self, doc_id: str, **update_dict) -> None:
