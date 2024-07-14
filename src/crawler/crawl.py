@@ -72,6 +72,12 @@ class Crawler:
         return self._client
 
     @staticmethod
+    def get_main_domain(url: URL) -> str:
+        return (
+            ".".join(url.host.split(".")[-2:]) if url.host.count(".") > 1 else url.host
+        )
+
+    @staticmethod
     def clean_url(url: URL) -> URL:
         return url.copy_with(query=None, fragment=None, params=None)
 
@@ -143,6 +149,7 @@ class Crawler:
                 "doc_id": doc_id,
                 "url": str(url),
                 "domain": url.host,
+                "main_domain": self.get_main_domain(url),
                 "depth": 0,
                 "priority": Priority.high.value,
                 "status": Status.pending.value,
@@ -165,6 +172,7 @@ class Crawler:
             self.frontier.loc[doc_id] = {
                 "url": str(url),
                 "domain": url.host,
+                "main_domain": self.get_main_domain(url),
                 "depth": depth,
                 "priority": priority.value,
                 "status": Status.pending.value,
@@ -195,7 +203,7 @@ class Crawler:
             .sort_values(
                 ["priority", "depth", "random_sort_key"], ascending=[False, True, True]
             )
-            .drop_duplicates(subset=["domain"], keep="first")
+            .drop_duplicates(subset=["main_domain"], keep="first")
             .head(self.config.batch_size)
         )
         return [
