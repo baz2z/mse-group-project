@@ -6,6 +6,7 @@ from httpx import URL
 class ScrapingRequest(NamedTuple):
     doc_id: str
     url: URL
+    root: str
     depth: int
 
 

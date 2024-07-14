@@ -1,133 +1,132 @@
-import numpy as np
+"""
+BM25 ranking algorithm.
+"""
+
+import collections
+import heapq
 import math
-import json
+import pickle
 import sys
 
-from pathlib import Path
-
-sys.path.insert(0, Path(__file__).resolve().parents[1])
-
-# internal imports
-from text_embedding import TextEmbedding
-from in_out import load_csr_matrix
+PARAM_K1 = 1.5
+PARAM_B = 0.75
+IDF_CUTOFF = 0
 
 
-class BM25():
+class BM25:
     """
-    BM25 (Best Matching 25) is a ranking algorithm used for information retrieval that 
-    computes relevance scores for documents given a query based on the tfidf approach.
+    Best Matching 25 ranking function
+
+    Attributes:
+        tf (dict of token: <doc, freq>): Dictionary with terms frequencies for each 
+            document in corpus.
+        idf (dict of token: idf score): Pre computed IDF score for every term.
+        doc_len (list of int): List of document lengths.
+        avgdl (float): Average length of document in `corpus`.
     """
-    
-    def __init__(self, index_path):
+    def __init__(self, corpus, k1=PARAM_K1, b=PARAM_B):
         """
-        Initialize BM25 on given pre computed index.
-        
-        Args:
-            path (str): The file path to the index.   
+        Args
+            corpus (list of list of str): Given corpus.
+            k1 (float): Constant used for influencing the term frequency saturation.
+            b (float): Constant used for influencing the effects of different document 
+                lengths relative to average document length.
         """
-        self.ranker = 'bm25'
-        self.text_embedding = TextEmbedding()
-       
-        # Initialize index
-        self.index_path = index_path        
-        self.initialize_index()
-        
         # Initialize BM25 parameters
-        self.N = len(self.doc_ids)
-        self.avg_doc_len = sum(self.doc_lengths) / self.N
-        
-        self.k = 1.5  # default k in range [1.2, 2.0]
-        self.b = 0.75 # default value for b
+        self.k1 = k1
+        self.b = b
 
-    def initialize_index(self):
-        """
-        Initializes the index by loading the necessary data from the index json file.
-        """
-        with open(self.index_path, 'r') as file:
-            index_data = json.load(file)
-        
-        self.doc_ids = index_data['doc_ids']
-        self.doc_lengths = index_data['doc_lengths']
-        self.token_names = index_data['token_names']
-        self.tf = load_csr_matrix(index_data['tfs'])
-        self.idf = index_data['idfs']
-        self.tfidf = load_csr_matrix(index_data['tfidfs'])
-
-    def vectorize_query(self, query):
-        """
-        Vectorizes the given query by creating a query vector based on the tokens in the query.
-
-        Args:
-            query (str): The query string.
-
-        Returns:
-            numpy.ndarray: The query vector representing the query.
-
-        """
-        query_tokens = self.text_embedding.bag_of_words(query).split(' ')
-        token_index = {token: i for i, token in enumerate(self.token_names)}
-        
-        # create a query vector out of query tokens
-        query_vec = np.zeros(len(self.token_names))
-        for token in query_tokens:
-            index = token_index.get(token)
-            if index is not None:
-                query_vec[index] = 1
+        # Initialize attributes
+        self.avgdl = 0
+        self.tf = {}
+        self.idf = {}
+        self.doc_len = []
                 
-        return query_vec
-    
-    def rank_tfidf(self, query):
+        # Pre compute tf and idf scores
+        self.initialize(corpus)
+
+    @property
+    def corpus_size(self):
         """
-        Ranks documents using TF-IDF scores.
+        Number of documents in the corpus.
+        """
+        return len(self.doc_len)
+
+    def initialize(self, corpus):
+        """
+        Calculates frequencies of terms in documents and in corpus. 
+        Also computes inverse document frequencies.
+        """
+        self.compute_term_frequencies(corpus)
+        self.compute_average_document_length()
+        self.compute_inverse_document_frequencies()
+
+        self.average_idf = sum(self.idf.values()) / len(self.idf)
+        if self.average_idf < 0:
+            print(
+                'Average inverse document frequency is less than zero.'
+                f'Your corpus of {self.corpus_size} documents'
+                ' is either too small or it does not originate from natural text. BM25 may produce'
+                ' unintuitive results.'
+            )
+
+    def compute_term_frequencies(self, corpus):
+        for i, document in enumerate(corpus):
+            self.doc_len.append(len(document))
+
+            for word in document:
+                if word not in self.tf:
+                    self.tf[word] = {}
+                if i not in self.tf[word]:
+                    self.tf[word][i] = 0
+                self.tf[word][i] += 1
+
+    def compute_inverse_document_frequencies(self):
+        for word, docs in self.tf.items():
+            idf = math.log(self.corpus_size - len(docs) + 0.5) - math.log(len(docs) + 0.5)
+            self.idf[word] = idf
+
+    def compute_average_document_length(self):
+        self.avgdl = sum(self.doc_len)/len(self.doc_len)
+
+    def save(self, filename):
+        with open(f"{filename}.pkl", "wb") as fsave:
+            pickle.dump(self, fsave, protocol=pickle.HIGHEST_PROTOCOL)
+                
+    ### 
+    # Below methods are used for loading the BM25 class with precomputed tf and idf scores
+    # and for retrieving the top n documents for a given query. Only the top n scores are 
+    # computed and returned.
+    ###
+    @staticmethod
+    def load(filename):
+        with open(f"{filename}.pkl", "rb") as fsave:
+            return pickle.load(fsave)
         
+    def retrieve_top_n(self, query, documents, n=5):
+        """
+        Retrieve the top n documents for the query.
+
         Args:
-            query (str): The query string for which to calculate the TF-IDF scores.
+            query (list of str): The tokenized query
+            documents (list): The documents to return from (doc_id with the same order as the corpus)
+            n (int): The number of documents to return
 
         Returns:
-            list: A list of tuples, where each tuple contains a document ID and its relevance score.
+            list of tupes: The top n documents of the form (doc_id, score)
         """
-        query_vector = self.vectorize_query(query)
-        scores = self.tfidf.dot(query_vector)
+        assert self.corpus_size == len(documents), \
+            "The documents given don't match the index corpus!"
         
-        ranked_documents = sorted(
-            enumerate(scores), key=lambda x: x[1], reverse=True
-        )
-        
+        scores = collections.defaultdict(float)
+        for token in query:
+            if token in self.tf:
+                for index, freq in self.tf[token].items():
+                    norm_doc_len = self.k1 * \
+                        (1 - self.b + self.b * self.doc_len[index] / self.avgdl)
+                    scores[index] += self.idf[token] * freq * (self.k1 + 1) / (freq + norm_doc_len)
+
         return [
-            (self.doc_ids[doc_id], score) 
-            for doc_id, score in ranked_documents
-        ]
-    
-    # TODO: vectorize for better performance
-    def rank(self, query):
-        """
-        BM25 ranking algorithm. 
-        
-        Uses the tfidf approach to compute relevance scores for documents given a query. 
-        
-        Args:
-            query (str): The query string.
-            
-        Returns:
-            list: A list of tuples, where each tuple contains a document ID and its relevance score.
-        """
-        query_vector = self.vectorize_query(query)
-        scores = np.zeros(len(self.doc_ids))
-        
-        for i, doc_id in enumerate(self.doc_ids):
-            doc_length = self.doc_lengths[i]
-            for j, term in enumerate(self.token_names):
-                if query_vector[j] > 0:
-                    idf = self.idf[term]
-                    tf_qi_D = self.tf[i, j]
-                    term_score = idf * (tf_qi_D * (self.k+1)) / \
-                        (tf_qi_D + self.k * (1 - self.b + self.b * (doc_length / self.avg_doc_len)))
-                    scores[i] += term_score
-                    
-        ranked_documents = sorted(
-            [(self.doc_ids[idx], score) for idx, score in enumerate(scores)],
-            key=lambda x: x[1], reverse=True
-        )
-
-        return ranked_documents
-    
+            (documents[i], scores[i]) 
+            for i in heapq.nlargest(n, scores.keys(), key=scores.__getitem__)
+            ]

@@ -2,14 +2,33 @@ import numpy as np
 import math
 import json
 import sys
+import os
+import pickle   
+import torch
+import gzip
 
 from pathlib import Path
 
 sys.path.insert(0, Path(__file__).resolve().parents[1])
 
 # internal imports
-from text_embedding import TextEmbedding
-from in_out import load_csr_matrix
+from text_embedding import BertEmbedding
+
+
+def save_tensor(tensor, file_path, compress=False):
+	if compress:
+		with gzip.open(file_path + '.gz', 'wb') as f:
+			torch.save(tensor, f)
+	else:
+		torch.save(tensor, file_path)
+
+def load_tensor(file_path, compressed=False):
+	if compressed:
+		with gzip.open(file_path, 'rb') as f:
+			tensor = torch.load(f)
+	else:
+		tensor = torch.load(file_path)
+	return tensor
 
 
 class colBERT():
@@ -18,30 +37,55 @@ class colBERT():
     computes relevance scores for documents given a query based on the tfidf approach.
     """
     
-    def __init__(self, index_path):
+    def __init__(self, corpus_path, index_path, doc_ids):
         """
         Initialize BM25 on given pre computed index.
         
         Args:
             path (str): The file path to the index.   
         """
-        self.ranker = 'colBERT'
-        self.text_embedding = TextEmbedding()
-       
-        # Initialize index
-        self.index_path = index_path        
-        self.initialize_index()
-        
+        self.index_path = index_path
+        self.corpus_path = corpus_path
+        self.doc_ids = doc_ids
+        self.text_embedding = BertEmbedding(self.corpus_path, self.index_path)
+        self.bert_embeddings = None
 
-    def initialize_index(self):
+    def load(self):
         """
-        Initializes the index by loading the necessary data from the index json file.
+        Load and stack tensors for documents specified in self.doc_ids.
         """
-        with open(self.index_path, 'r') as file:
-            index_data = json.load(file)
+        loaded_tensors = []
+        for doc_id in self.doc_ids:
+            tensor_path = os.path.join(self.index_path, f"{doc_id}.pt")
+            if os.path.exists(tensor_path):
+                tensor = torch.load(tensor_path)
+                loaded_tensors.append(tensor)
+            else:
+                print(f"Warning: Tensor file for doc_id {doc_id} not found.")
         
-        self.doc_ids = index_data['doc_ids']
-        self.bert_embedding = index_data['bert_embeddings']
+        if loaded_tensors:
+            self.bert_embeddings = torch.stack(loaded_tensors)
+        else:
+            print("No tensors were loaded.")
+            self.bert_embeddings = None
+
+
+    def create(self):
+        # BertEmbedding nur als klassenvariable wenn embeddings erzeugt werden
+        self.text_embedding.create_bert_embeddings()
+        
+    def create_index(self, text_embedding):
+        
+        # TODO:
+        # Loop through corpus -> for (doc_id, doc_text) in self.corpus.items():
+        #  - Maybe tokenize each document (might be relevant for .md files with extra symbols)
+        #    -> remove symbols (wir müssen uns dann einfach mal die .md files anschauen)
+        #  - Get BERT embeddings for each document
+        #    -> apply text_embedding.get_bert_embeddings() 
+        #    -> oder auch einfach nur text_embedding.get_single_bert_embedding(doc_text)?
+        #  - save single embedding to pt file (see save_tensor function up top)
+        #    -> name should be something like f"dat/{bert_index_name}/{doc_id}.pt"
+        self.doc_ids, self.bert_embeddings =  text_embedding.get_bert_embeddings()
 
     def vectorize_query(self, query):
         """
@@ -69,26 +113,57 @@ class colBERT():
             list: A list of tuples containing the document ID and the relevance score.
         """
         query_vector = self.vectorize_query(query)
-        scores = self.compute_scores(query_vector)
-        ranked_docs = self.get_top_k(scores, top_k)
+        
+        # TODO: 
+        # Implement batching functionality
+        # - initialize a list to store the scores for each batch
+        # - laod a given batch using the self.load function (not static anymore)
+        # - perform compute_scores on the batch
+        #   -> this should only return the scores and not do the top_k selection
+        #   -> outsource the top_k selection to a separate function
+        # - keep track of score for given doc_ids and append them to the list
+        # - top k selection and return
+        
+        sum_over_docs = self.compute_scores(query_vector, top_k)
+
+        # Ensure top_k does not exceed the number of documents
+        adjusted_top_k = min(top_k, sum_over_docs.size(0))
+        scores, indices = torch.topk(sum_over_docs, k=adjusted_top_k)
+
+        # Assuming self.doc_ids stores document IDs corresponding to the indices in self.bert_embeddings
+        doc_ids = [self.doc_ids[idx] for idx in indices]
+    
+        ranked_docs = list(zip(doc_ids, scores))
+
         
         return ranked_docs
-    
-    def compute_scores(self, query_vector):
-        scores = []
-        for doc_id, doc_embedding in self.bert_embedding.items():
-            doc_score = 0
-            for query_token_embedding in query_vector[0]:
-                token_similarities = []
-                doc_token_embeddings = doc_embedding[0]
-                # Calculate cosine similarities for this token across all document tokens
-                similarities = [np.dot(query_token_embedding, doc_token_embedding) / 
-                               (np.linalg.norm(query_token_embedding) * np.linalg.norm(doc_token_embedding)) 
-                                for doc_token_embedding in doc_token_embeddings]  # Iterate through embeddings for each token
-                token_similarities.append(max(similarities))  # Find the max similarity for this token
-                doc_score += sum(token_similarities)  # Sum of max similarities for all query tokens
-            scores.append((doc_id, doc_score))
-        return scores
+
+
+    def compute_scores(self, query_vector, top_k=10):
+        sim_scores_per_doc = []
+        epsilon = 1e-10  # Small value to avoid division by zero
+
+        print("Embedding",self.bert_embeddings.shape)
+        for query_embedding in query_vector:
+            print("Query Embed",query_embedding.shape)
+            # Normalize query_embedding
+            query_embedding_norm = query_embedding / (torch.norm(query_embedding, p=2, dim=0, keepdim=True) + epsilon)
+            
+            # Normalize bert_embeddings
+            bert_embeddings_norm = self.bert_embeddings / (torch.norm(self.bert_embeddings, p=2, dim=2, keepdim=True) + epsilon)
+            
+            # Perform dot product using matmul, now with normalized embeddings
+            scores = torch.matmul(bert_embeddings_norm, query_embedding_norm.T)  # Transpose query_embedding_norm for matmul
+            print(scores.shape)
+            max_scores, _ = torch.max(scores, dim=1)
+            sim_scores_per_doc.append(max_scores)
+        
+        # Convert list to tensor
+        sim_scores_tensor = torch.stack(sim_scores_per_doc)
+        # Sum over the documents
+        sum_over_docs = torch.sum(sim_scores_tensor, dim=0)
+
+        return sum_over_docs
     
     def get_top_k(self, scores, top_k):
         return sorted(scores, key=lambda x: x[1], reverse=True)[:top_k]

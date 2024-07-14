@@ -1,49 +1,64 @@
 import re
 import sys
+import tqdm
+import torch
+import torch.nn as nn
 
 from pathlib import Path
+from tqdm import tqdm
+
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
 
 from transformers import BertTokenizer, BertModel
-import torch
+from transformers import DebertaV2Tokenizer, DebertaV2Model
+
+# internal imports
+from in_out import load_corpus_from_json_files, load_corpus
 
 sys.path.insert(0, Path(__file__).resolve().parents[1])
 
 
-class TextEmbedding():
-    
-    def __init__(self, corpus=None):
+class BagOfWordsTokenizer():
+    """
+    A class to create bag of words tokens from a given corpus.
+    """
+    def __init__(self, corpus):
         """
-        A class to create text embeddings.
-        
+        Init tokenizer with given corpus and load stemmer and stopwords.
+                
         Args:
             corpus (dict): A dictionary where the keys are document IDs and the values are the
-                corresponding documents (strings):
-                
-                Example:
-                    {
-                        'doc1': 'This is the first document.',
-                        'doc2': 'This is the second document.'
-                    }
-
+                corresponding documents.
         """
         self.corpus = corpus
         
         self.stemmer = PorterStemmer()
         self.stopwords = set(stopwords.words('english'))
-        
-        # Tiny_BERT embeddings 
-        self.tokenizer = BertTokenizer.from_pretrained('google/bert_uncased_L-4_H-256_A-4')
-        self.model = BertModel.from_pretrained('google/bert_uncased_L-4_H-256_A-4')
-    
-    def get_doc_ids(self):
-        print(self.corpus.keys())
-        return self.corpus.keys()
-    
-    def bag_of_words(self, text):
+
+    @property
+    def doc_ids(self):
         """
-        Extracts bag of words from the given text.
+        Ordered document IDs in the corpus.
+        """
+        return list(self.corpus.keys())
+    
+    def tokenize_corpus(self):
+        """
+        Tokenizes the corpus by extracting bag of words from each document.
+
+        Returns:
+            list of list of strings: Tokenized documents.
+        """
+        tokenized_docs = []
+        for doc in tqdm(self.corpus.values(), desc="Tokenize documents"):
+            tokenized_doc = self.tokenize(doc)
+            tokenized_docs.append(tokenized_doc)
+        return tokenized_docs
+    
+    def tokenize(self, text):
+        """
+        Extracts bag of words tokens from the given text.
 
         Args:
             text (str): The text from which to extract bag of words.
@@ -58,21 +73,37 @@ class TextEmbedding():
         tokens = [self.stemmer.stem(token) for token in tokens
                   if token not in self.stopwords]
         
-        return ' '.join(tokens)
+        return tokens
+
+
+class BertEmbedding():
     
-    # word2vec embeddings
-    def vectorize(self, text):
+    def __init__(self, corpus_path=None, index_path=None):
         """
-        Vectorizes the given text using word embeddings.
-
+        A class to create text embeddings.
+        
         Args:
-            text (str): The text to vectorize.
-
-        Returns:
-            np.array: The vectorized representation of the text.
+            corpus (dict): A dictionary where the keys are document IDs and the values are the
+                corresponding documents.
         """
-        pass # TODO: Immplement
-
+        self.corpus_path = corpus_path       
+        self.index_path = index_path
+        self.stopwords = set(stopwords.words('english'))
+        
+        # deberta
+        # self.tokenizer = DebertaV2Tokenizer.from_pretrained('microsoft/deberta-v3-small')
+        # self.model = DebertaV2Model.from_pretrained('microsoft/deberta-v3-small')
+        
+        # Tiny_BERT embeddings   
+        self.tokenizer = BertTokenizer.from_pretrained('google/bert_uncased_L-4_H-256_A-4')
+        self.model = BertModel.from_pretrained('google/bert_uncased_L-4_H-256_A-4')
+        
+    @property
+    def doc_ids(self):
+        """
+        Ordered document IDs in the corpus.
+        """
+        return list(self.corpus.keys())
 
     def get_single_bert_embedding(self, text, Nq=16):
         """
@@ -84,12 +115,13 @@ class TextEmbedding():
         Returns:
             list: The BERT embeddings for the input text.
         """
-
-        inputs = self.tokenizer(self.remove_stopwords(text), return_tensors="pt", padding=True, truncation=True)
-
-        # # Get the actual length of input_ids
-        # input_length = inputs['input_ids'].size(1)
-
+        inputs = self.tokenizer(
+            self.remove_stopwords(text), 
+            return_tensors="pt", 
+            padding=True, 
+            truncation=True
+        )
+        # TODO: Clean up (still needed?)
         # # Pad or truncate
         # if input_length < Nq:
         #     # Calculate the number of mask tokens to add
@@ -109,29 +141,55 @@ class TextEmbedding():
         outputs = self.model(**inputs)
         last_hidden_states = outputs.last_hidden_state
 
-        # Normalize the embeddings
-        norm = torch.norm(last_hidden_states, p=2, dim=2, keepdim=True)
-        normalized_single_embedding = last_hidden_states / norm
-        return normalized_single_embedding.tolist()
+        # remove embeddings of special beginning and ending token:
+        word_embeddings = last_hidden_states[0, 1:-1, :]
+        
+        return word_embeddings
 
-
-    def get_bert_embeddings(self):
+    def create_bert_embeddings(self):
         """
         Generates BART embeddings for each term in the corpus, handling documents longer than the maximum sequence length by chunking.
         
         Returns:
             A dictionary where keys are document IDs and values are concatenated embeddings of chunks.
         """
-        embeddings = {}
+        if not Path(self.index_path).exists():
+            Path(self.index_path).mkdir(parents=True, exist_ok=True)
+        
+        self.initiate_corpus()
+        doc_ids = []  # List to store document IDs
+        chunk_embeddings_list = []  # List to temporarily store embeddings for each document
+        
         max_length = 512  # Assuming 512 is the max length for BART
-        for doc_id, document in self.corpus.items():
-            # Ensure the document is not empty by appending a space if it is
-            document = self.remove_stopwords(document)
 
+
+        # Step 1: Adjusted to chunk documents before calculating max tokens
+        max_tokens = 0
+        for doc_id, document in tqdm(self.corpus.items(), desc="Calculate max tokens"):
+            document = self.remove_stopwords(document)
+            document = re.sub(r'[\#\*\=\-\<\>\}]', '', document)
             if not document:
                 document = " "
-            # remove stopwords of document
-            # Split document into chunks
+            # Chunk the document
+            chunks = [document[i:i+max_length] for i in range(0, len(document), max_length)]
+            total_tokens = 0
+            for chunk in chunks:
+                inputs = self.tokenizer(chunk, return_tensors="pt", padding=True, truncation=True)
+                num_tokens = inputs.input_ids.size(1)
+                total_tokens += num_tokens  # Sum tokens for all chunks
+            if total_tokens > max_tokens:
+                max_tokens = total_tokens  # Update max_tokens if current document has more tokens
+
+        
+        # Step 2: Process each document, pad if necessary, and save
+        for doc_id, document in tqdm(self.corpus.items(), desc="Create BERT embeddings per doc"):
+            tensor_filename = f"{self.index_path}/{doc_id}.pt"
+            if Path(tensor_filename).exists():
+                continue  
+            document = self.remove_stopwords(document)
+            document = re.sub(r'[\#\*\=\-\<\>\}]', '', document)
+            if not document:
+                document = " "
             chunks = [document[i:i+max_length] for i in range(0, len(document), max_length)]
             chunk_embeddings = []
             for chunk in chunks:
@@ -139,18 +197,19 @@ class TextEmbedding():
                 outputs = self.model(**inputs)
                 last_hidden_states = outputs.last_hidden_state
                 chunk_embeddings.append(last_hidden_states)
-            
-            # Concatenate embeddings from all chunks
-            concatenated_embeddings = torch.cat(chunk_embeddings, dim=1)
-            # normaliize concatenated embeddings
+            concatenated_embeddings = torch.cat(chunk_embeddings, dim=1)[0]
 
-            # Calculate the Euclidean norm (magnitude) of the vector
-            magnitude = torch.norm(concatenated_embeddings, p=2, dim=2, keepdim=True)
-            # Normalize the vector by dividing by its magnitude
-            normalized_embeddings = concatenated_embeddings / magnitude
+            # Padding
+            padding_length = max_tokens - concatenated_embeddings.shape[0]
+            if padding_length > 0:
+                padded_embedding = torch.nn.functional.pad(concatenated_embeddings, (0, 0, 0, padding_length), "constant", 0)
+            else:
+                padded_embedding = concatenated_embeddings
+            # print(padded_embedding.shape)
 
-            embeddings[doc_id] = normalized_embeddings.tolist()
-        return embeddings
+            # Save the padded_embedding tensor to a file named after the doc_id
+            torch.save(padded_embedding, tensor_filename)
+
     
     def remove_stopwords(self, text):
         """
@@ -166,17 +225,8 @@ class TextEmbedding():
         tokens = [token for token in tokens if token not in self.stopwords]
         return ' '.join(tokens)
 
-    
-    
-    # ? PageRank calculations somewhere else I guess, use adjacentcy matrix?
-    def incoming_pages(self, doc_id):
+    def initiate_corpus(self):
         """
-        Returns the incoming pages of the given document.
-
-        Args:
-            doc_id (str): The document ID for which to find incoming pages.
-
-        Returns:
-            list: List of incoming pages.
+        Load the corpus from the given path.
         """
-        pass # TODO: Implement somewhere eles, does not fit in here.
+        self.corpus = load_corpus(self.corpus_path)

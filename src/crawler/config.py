@@ -1,15 +1,23 @@
-import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
+import pandas as pd
 from httpx import URL
 
-BASE_DIR = Path(__file__).parent.parent.parent / "dat" / "crawler"
-HTML_DIR = BASE_DIR / "html"
-INDEX_DIR = BASE_DIR / "index"
+HARD_DRIVE = Path("D://")
+assert HARD_DRIVE.exists(), "Please connect the hard drive used for the project."
 
+BASE_DIR = HARD_DRIVE / "mse"
+HTML_DIR = BASE_DIR / "html"
 HTML_DIR.mkdir(parents=True, exist_ok=True)
-INDEX_DIR.mkdir(parents=True, exist_ok=True)
+
+SEED_URLS = (
+    pd.read_json(BASE_DIR / "queries.jsonl", lines=True)
+    .links
+    .explode()
+    .apply(URL)
+    .tolist()
+)
 
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -17,39 +25,15 @@ USER_AGENT = (
     "Chrome/126.0.0.0 Safari/537.36"
 )
 
-SEED_URLS = {
-    URL("https://www.tuebingen.de/"),
-    URL("https://www.tuebingen.de/en/"),
-    URL("https://www.tuebingen-info.de/"),
-    URL("https://www.tuepedia.de/"),
-    URL("https://www.swabianalb.info/cities/tuebingen"),
-    URL("https://www.tuemarkt.de/"),
-    URL("https://uni-tuebingen.de/en/"),
-    URL("https://en.wikipedia.org/wiki/T%C3%BCbingen"),
-    URL("https://de.wikipedia.org/wiki/T%C3%BCbingen"),
-}
-
-ALLOWED_DOMAINS_REGEX = [
-    # the domain must start with www, de, or en and end with com, de, org, or net
-    # examples of valid domains: www.example.com, de.example.de, en.example.org, example.net
-    re.compile(
-        r"^(www|de|en)?\.?([a-zA-Z0-9-]+)\.(com|de|org|net|info)$", re.IGNORECASE
-    ),
-]
-
-FORBIDDEN_DOMAINS_REGEX = []
-
 
 @dataclass(frozen=True)
 class CrawlerConfig:
-    seed_urls = SEED_URLS
-    html_dir = HTML_DIR
-    ids_dir = BASE_DIR
-    index_dir = INDEX_DIR
-    max_depth = 5
-    headers = {"User-Agent": USER_AGENT}
-    max_docs = 1e5
-    sleep_time = 1
-    timeout = 10
-    allowed_domains_pattern = ALLOWED_DOMAINS_REGEX
-    forbidden_domains_pattern = FORBIDDEN_DOMAINS_REGEX
+    html_dir: Path = HTML_DIR
+    ids_dir: Path = BASE_DIR
+    max_docs: int = 100_000
+    max_depth: int = 5
+    sleep_time: float = 2
+    timeout: float = 10
+
+    seed_urls: list[URL] = field(default_factory=lambda: SEED_URLS)
+    headers: dict[str, str] = field(default_factory=lambda: {"User-Agent": USER_AGENT})
