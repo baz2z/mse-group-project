@@ -3,7 +3,6 @@ import hashlib
 import logging
 import re
 from typing import Iterator
-from urllib.parse import unquote
 
 import httpx
 import pandas as pd
@@ -22,20 +21,26 @@ pd.options.mode.chained_assignment = None
 
 TUBINGEN_PATTERN = re.compile(r"t(ü|ue|u)binge([nr])", re.IGNORECASE)
 ENGLISH_PATTERN = re.compile(r"^en([-_](us|gb|de))?$", re.IGNORECASE)
-HOSTNAME_PATTERN = re.compile(r"\S+\.(de|com|org|net)$")
 
 
 class Crawler:
-    def __init__(self, run_id: str = "", config: CrawlerConfig = None):
+    def __init__(self, run_id: str = "", config: CrawlerConfig | None = None):
         self.run_id: str = run_id or pd.Timestamp.now().strftime("%Y%m%d%H%M%S")
         self.config: CrawlerConfig = config or CrawlerConfig()
-        self.frontier: pd.DataFrame = self.load_frontier()
+
+        self.base_dir = config.DIR / f"mse_{self.run_id}"
+        self.html_dir = self.base_dir / "html"
+        self.html_dir.mkdir(parents=True, exist_ok=True)
+
         self._client: AsyncClient or None = None
+        self.logger = get_logger("crawler", logging.DEBUG)
+
+        self.frontier: pd.DataFrame = self.load_frontier()
 
     @property
     def client(self) -> AsyncClient:
         if self._client is None:
-            logger.debug("Creating a new HTTP client")
+            self.logger.debug("Creating a new HTTP client")
             self._client = AsyncClient(headers=self.config.headers)
         return self._client
 
@@ -60,23 +65,15 @@ class Crawler:
         )
 
     @staticmethod
-    def parse_html(content: bytes) -> html.HtmlElement:
+    def is_url_valid(url: URL) -> bool:
+        return url.is_absolute_url and url.scheme in {"http", "https"}
+
+    def parse_html(self, content: bytes) -> html.HtmlElement:
         try:
             return html.fromstring(content)
-        except ParserError:
-            logger.debug("ParserError occurred while parsing HTML")
+        except ParserError as e:
+            self.logger.debug(f"Failed to parse HTML: {e})")
             return html.fromstring("<html></html>")
-
-    def is_url_valid(self, url: URL) -> bool:
-        return (
-            url.is_absolute_url
-            and url.scheme in {"http", "https"}
-            and (
-                url.host in self.config.allowed_domains
-                or bool(HOSTNAME_PATTERN.search(url.host))
-            )
-            and bool(TUBINGEN_PATTERN.search(unquote(str(url))))
-        )
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10))
     async def _get(self, url: URL) -> Response:
@@ -87,12 +84,12 @@ class Crawler:
         return response
 
     def load_frontier(self) -> pd.DataFrame:
-        fp = self.config.ids_dir / f"{self.run_id}.csv"
+        fp = self.base_dir / f"{self.run_id}.csv"
         if fp.exists():
-            logger.debug("Loading the existing frontier")
+            self.logger.debug("Loading the existing frontier")
             return pd.read_csv(fp).set_index("doc_id")
         else:
-            logger.debug("Creating a new frontier")
+            self.logger.debug("Creating a new frontier")
             return (
                 pd.DataFrame(self.convert_seed_to_frontier())
                 .drop_duplicates(subset=["doc_id"])
@@ -102,14 +99,16 @@ class Crawler:
     def convert_seed_to_frontier(self) -> Iterator[dict[str, any]]:
         for url in self.config.seed_urls:
             doc_id = self.create_id_for_url(url)
+            now = pd.Timestamp.now()
             yield {
                 "doc_id": doc_id,
                 "url": str(url),
                 "domain": url.host,
                 "depth": 0,
                 "priority": Priority.high.value,
-                "status": "pending",
-                "created": pd.Timestamp.now(),
+                "status": Status.pending.value,
+                "created": now,
+                "updated": now,
                 "root": doc_id,
             }
 
@@ -121,27 +120,31 @@ class Crawler:
         try:
             entry = self.frontier.loc[doc_id]
         except KeyError:
+            now = pd.Timestamp.now()
             self.frontier.loc[doc_id] = {
                 "url": str(url),
                 "domain": url.host,
                 "depth": depth,
                 "priority": priority.value,
                 "status": Status.pending.value,
-                "created": pd.Timestamp.now(),
+                "created": now,
+                "updated": now,
                 "root": root,
             }
             return None
 
-        if entry["status"] == Status.pending:
-            if entry["depth"] > depth:
-                self.frontier.loc[doc_id, "depth"] = depth
-
-            if entry["priority"] < priority.value:
-                self.frontier.loc[doc_id, "priority"] = priority.value
+        if entry["status"] == Status.pending and (
+            entry["depth"] > depth or entry["priority"] < priority.value
+        ):
+            self.update_doc(
+                doc_id,
+                depth=min(entry["depth"], depth),
+                priority=max(entry["priority"], priority.value),
+            )
 
         return None
 
-    def fetch_next_doc_batch(self, limit: int = 256) -> list[ScrapingRequest]:
+    def fetch_next_doc_batch(self) -> list[ScrapingRequest]:
         pending_docs = (
             self.frontier.query(
                 "status == 'pending' and depth < @self.config.max_depth"
@@ -150,7 +153,7 @@ class Crawler:
                 ["priority", "depth", "created"], ascending=[False, True, True]
             )
             .drop_duplicates(subset=["domain"], keep="first")
-            .head(limit)
+            .head(self.config.batch_size)
         )
         return [
             ScrapingRequest(
@@ -165,18 +168,37 @@ class Crawler:
     def add_new_links_to_frontier(
         self, request: ScrapingRequest, response: Response
     ) -> None:
-        tree = self.parse_html(response.content)
-        priority = Priority.high if self.is_english(tree) else Priority.low
+        tree = self.parse_html(content=response.content)
+        if not bool(TUBINGEN_PATTERN.search(tree.text_content())):
+            return None
+
+        if self.is_english(tree=tree):
+            priority = Priority.high
+        else:
+            priority = Priority.low
+            url_en = response.url.copy_with(path="/en", query=None, fragment=None)
+            if self.is_url_valid(url_en):
+                self.add_to_frontier(
+                    url=url_en,
+                    priority=Priority.high,
+                    depth=request.depth + 1,
+                    root=request.root,
+                )
 
         for href in tree.xpath("//a/@href"):
-            if url := self.extract_url(href, request.url):
-                self.add_to_frontier(url, priority, request.depth + 1, request.root)
+            if url := self.extract_url(url=href, base_url=response.url):
+                self.add_to_frontier(
+                    url=url,
+                    priority=priority,
+                    depth=request.depth + 1,
+                    root=request.root,
+                )
 
     def extract_url(self, url: str, base_url: URL) -> URL or None:
         try:
             url = URL(url)
         except httpx.InvalidURL:
-            logger.debug(f"Invalid URL: {url}")
+            self.logger.debug(f"Invalid URL: {url}")
             return None
 
         if url.is_relative_url:
@@ -185,18 +207,19 @@ class Crawler:
         url = url.copy_with(query=None, fragment=None, params=None)
         return url if self.is_url_valid(url) else None
 
-    def mark_status(self, doc_id: str, status: Status) -> None:
-        self.frontier.loc[doc_id, "status"] = status.value
+    def update_doc(self, doc_id: str, **update_dict) -> None:
+        update_dict["updated"] = pd.Timestamp.now()
+        self.frontier.loc[doc_id, list(update_dict.keys())] = list(update_dict.values())
 
     def save_response(self, doc_id: str, content: bytes) -> None:
-        (self.config.html_dir / f"{doc_id}.html").write_bytes(content)
+        (self.html_dir / f"{doc_id}.html").write_bytes(content)
 
     def save_frontier(self) -> None:
-        self.frontier.to_csv(self.config.ids_dir / f"{self.run_id}.csv")
+        self.frontier.to_csv(self.base_dir / f"{self.run_id}.csv")
 
     async def close(self) -> None:
         if self._client:
-            logger.debug("Closing the HTTP client")
+            self.logger.debug("Closing the HTTP client")
             await self._client.aclose()
             self._client = None
 
@@ -204,7 +227,7 @@ class Crawler:
         try:
             return await self._get(req.url)
         except tenacity.RetryError:
-            logger.debug(f"Failed to fetch: {req.url}")
+            self.logger.debug(f"Failed to fetch: {req.url}")
             return None
 
     async def _run(self) -> None:
@@ -215,13 +238,18 @@ class Crawler:
             )
             for req, response in zip(req_batch, responses):
                 if response is None or not self.is_html(response):
-                    self.mark_status(req.doc_id, Status.failed)
+                    self.update_doc(req.doc_id, status=Status.failed.value)
                     continue
 
                 pbar.set_description(f"Processing: {req.doc_id}")
                 self.save_response(req.doc_id, response.content)
                 self.add_new_links_to_frontier(req, response)
-                self.mark_status(req.doc_id, Status.completed)
+                self.update_doc(
+                    req.doc_id,
+                    status=Status.completed.value,
+                    url=str(response.url),
+                    domain=response.url.host,
+                )
                 pbar.update(1)
 
             self.save_frontier()
@@ -236,6 +264,5 @@ class Crawler:
 
 
 if __name__ == "__main__":
-    logger = get_logger("crawler", logging.DEBUG)
     c = Crawler()
     asyncio.run(c.run())

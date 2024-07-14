@@ -1,4 +1,3 @@
-import re
 from typing import NamedTuple
 
 import pandas as pd
@@ -8,14 +7,11 @@ from tqdm import tqdm
 
 from crawler.config import BASE_DIR, HTML_DIR, TXT_DIR
 
-TABS = re.compile(r"\t+", re.MULTILINE)
-TOO_MANY_NEWLINES = re.compile(r"\s*\n\s*\n\s*", re.MULTILINE)
-SHORT_LINES = re.compile(r"^(?:\s*\S+\s*){1,4}$", re.MULTILINE)
-
 EXCLUDE_TAGS = {
     "script",
     "style",
     "head",
+    "header",
     "meta",
     "link",
     "noscript",
@@ -48,19 +44,15 @@ class ProcessedDoc(NamedTuple):
 
 
 def process_doc(content: bytes, doc_id: str):
-    html_str = content.decode("utf-8", errors="ignore")
-    soup = BeautifulSoup(html_str, "lxml")
+    html_content = content.decode("utf-8", errors="ignore")
+    soup = BeautifulSoup(html_content, "html.parser")
 
     for tag in soup.find_all(EXCLUDE_TAGS):
         tag.decompose()
 
-    text_content = soup.get_text()
-    text_content = TABS.sub(" ", text_content)
-    text_content = SHORT_LINES.sub("", text_content)
-    text_content = TOO_MANY_NEWLINES.sub("\n\n", text_content)
-    text_content = text_content.strip()
-
-    if len(text_content) < 100:
+    text_content = soup.get_text(strip=True, separator=" ")
+    text_content = " ".join(text_content.split())
+    if len(text_content) < 128:
         return ProcessedDoc(doc_id, text_content, None)
 
     lang = detector.detect_language_of(text_content)
