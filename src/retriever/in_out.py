@@ -5,7 +5,7 @@ import csv
 from scipy.sparse import csr_matrix
 
 
-def load_corpus(index_dir, k):
+def load_corpus(index_dir, k=None):
     """
     Load a corpus from a directory of md files.
 
@@ -16,20 +16,43 @@ def load_corpus(index_dir, k):
     corpus = {}
     idx = 0
     for filename in os.listdir(index_dir):
-        if filename.endswith(".md"):
-            if idx >= k:
-                return corpus
-            file_path = os.path.join(dir, filename)
-            with open(file_path, 'r') as file:
-                corpus[filename[:-3]] = file.read()
-            idx += 1
+        if k is not None and idx >= k:
+            return corpus
+        file_path = os.path.join(index_dir, filename)
+        with open(file_path, 'r') as file:
+            corpus[filename[:-8]] = file.read()
+        idx += 1
         if idx % 5000 == 0:
-            print(f"Processing md files - n={idx}")
-    print(f"loaded {idx} documents")
+            print(f"Processing files - n={idx}")
+    print(f"Loaded {idx} documents.")
     return corpus
 
 
-def load_corpus_from_json_files(directory_path, k=200):
+def create_subset_folder(index_dir, subset_dir, k=200):
+    """
+    Create a subset of a corpus from a directory of md files.
+
+    Args:
+        index_dir (str): Path to folder containing md files.
+        subset_dir (str): Path to folder where subset will be saved.
+        k (int): Number of documents to save.
+    """
+    if not os.path.exists(subset_dir):
+        os.makedirs(subset_dir)
+    idx = 0
+    for filename in os.listdir(index_dir):
+        if idx >= k:
+            return
+        file_path = os.path.join(index_dir, filename)
+        with open(file_path, 'r') as file:
+            text = file.read()
+        with open(os.path.join(subset_dir, filename), 'w') as file:
+            file.write(text)
+        idx += 1
+    print(f"saved {idx} documents")
+
+
+def load_corpus_from_json_files(directory_path, k=100000):
     corpus = {}
     idx = 0
     for filename in os.listdir(directory_path):
@@ -101,3 +124,14 @@ def load_csr_matrix(data):
         )
     else:
         raise ValueError("JSON does not contain csr_matrix data")
+    
+
+if __name__ == "__main__":
+    
+    corpus = load_corpus("dat/eng", 4000)
+    url_map = load_url_mapping_from_csv("dat/eng_doc_id_mapping.csv")
+    
+    print(f"Loaded {len(corpus)} documents")
+    print(list(corpus.items())[:2])
+    
+    create_subset_folder("dat/eng", "dat/eng_subset", 200)

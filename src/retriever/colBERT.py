@@ -37,38 +37,44 @@ class colBERT():
     computes relevance scores for documents given a query based on the tfidf approach.
     """
     
-    def __init__(self, corpus):
+    def __init__(self, corpus_path, index_path, doc_ids):
         """
         Initialize BM25 on given pre computed index.
         
         Args:
             path (str): The file path to the index.   
         """
-        self.ranker = 'colBERT'
-        self.corpus = corpus
-        self.text_embedding = BertEmbedding(corpus=corpus)
+        self.index_path = index_path
+        self.corpus_path = corpus_path
+        self.doc_ids = doc_ids
+        self.text_embedding = BertEmbedding(self.corpus_path, self.index_path)
         self.bert_embeddings = None
-        self.doc_ids = None
-              
-        self.create_index()
 
-    # TODO: Should not be static anymore since we are not laoding the entire class anymore
-    @staticmethod
-    def load(filename): # TODO: new param: doc_ids (based on bm25 output)
+    def load(self):
+        """
+        Load and stack tensors for documents specified in self.doc_ids.
+        """
+        loaded_tensors = []
+        for doc_id in self.doc_ids:
+            tensor_path = os.path.join(self.index_path, f"{doc_id}.pt")
+            if os.path.exists(tensor_path):
+                tensor = torch.load(tensor_path)
+                loaded_tensors.append(tensor)
+            else:
+                print(f"Warning: Tensor file for doc_id {doc_id} not found.")
         
-        # TODO:
-        # Restack single doc tensors into batch tensor
-        #  - load all tensors from pt files that match the provided doc_ids
-        #  - stack them into a single tensor
-        
-        with open(f"{filename}.pkl", "rb") as fsave:
-            return pickle.load(fsave)
+        if loaded_tensors:
+            self.bert_embeddings = torch.stack(loaded_tensors)
+        else:
+            print("No tensors were loaded.")
+            self.bert_embeddings = None
 
-    def save(self, filename):
-        with open(f"{filename}.pkl", "wb") as fsave:
-            pickle.dump(self, fsave, protocol=pickle.HIGHEST_PROTOCOL)
+
+    def create(self):
+        # BertEmbedding nur als klassenvariable wenn embeddings erzeugt werden
+        self.text_embedding.create_bert_embeddings()
         
-    def create_index(self):
+    def create_index(self, text_embedding):
         
         # TODO:
         # Loop through corpus -> for (doc_id, doc_text) in self.corpus.items():
@@ -79,8 +85,7 @@ class colBERT():
         #    -> oder auch einfach nur text_embedding.get_single_bert_embedding(doc_text)?
         #  - save single embedding to pt file (see save_tensor function up top)
         #    -> name should be something like f"dat/{bert_index_name}/{doc_id}.pt"
-              
-        self.doc_ids, self.bert_embeddings =  self.text_embedding.get_bert_embeddings()
+        self.doc_ids, self.bert_embeddings =  text_embedding.get_bert_embeddings()
 
     def vectorize_query(self, query):
         """
@@ -119,7 +124,11 @@ class colBERT():
         # - keep track of score for given doc_ids and append them to the list
         # - top k selection and return
         
-        scores, indices = self.compute_scores(query_vector, top_k)
+        sum_over_docs = self.compute_scores(query_vector, top_k)
+
+        # Ensure top_k does not exceed the number of documents
+        adjusted_top_k = min(top_k, sum_over_docs.size(0))
+        scores, indices = torch.topk(sum_over_docs, k=adjusted_top_k)
 
         # Assuming self.doc_ids stores document IDs corresponding to the indices in self.bert_embeddings
         doc_ids = [self.doc_ids[idx] for idx in indices]
@@ -153,9 +162,8 @@ class colBERT():
         sim_scores_tensor = torch.stack(sim_scores_per_doc)
         # Sum over the documents
         sum_over_docs = torch.sum(sim_scores_tensor, dim=0)
-        top_k_scores, top_k_indices = torch.topk(sum_over_docs, k=top_k)
 
-        return top_k_scores, top_k_indices
+        return sum_over_docs
     
     def get_top_k(self, scores, top_k):
         return sorted(scores, key=lambda x: x[1], reverse=True)[:top_k]
