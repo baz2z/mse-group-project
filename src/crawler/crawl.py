@@ -71,6 +71,9 @@ class Crawler:
             self._client = AsyncClient(headers=headers)
         return self._client
 
+    def html_too_large(self, content: bytes) -> bool:
+        return len(content) > self.config.max_filesize
+
     @staticmethod
     def get_main_domain(url: URL) -> str:
         return (
@@ -227,7 +230,9 @@ class Crawler:
 
         if self.is_english(tree=tree):
             priority = Priority.high
-            self.update_doc(request.doc_id, features_tubingen=True, features_english=True)
+            self.update_doc(
+                request.doc_id, features_tubingen=True, features_english=True
+            )
         else:
             self.update_doc(request.doc_id, features_tubingen=True)
             priority = Priority.low
@@ -293,7 +298,11 @@ class Crawler:
                 *(self.fetch_response(r) for r in req_batch)
             )
             for req, response in zip(req_batch, responses):
-                if response is None or not self.is_html(response):
+                if (
+                    response is None
+                    or not self.is_html(response)
+                    or self.html_too_large(response.content)
+                ):
                     self.update_doc(req.doc_id, status=Status.failed.value)
                     continue
 

@@ -29,4 +29,5 @@ class CrawlerConfig:
     batch_size: int = 256
     max_depth: int = 10
     timeout: float = 10
+    max_filesize: int = 10_000_000
     seed_urls: set[URL] = field(default_factory=get_seed_urls)
