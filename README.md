@@ -67,4 +67,10 @@ This command launches the backend server with auto-reloading enabled for develop
 
 **Start the Frontend Development Server**
 
-In the `/frontend` directory, start the React/Next.js development server. This command starts the frontend development server. Open your browser and navigate to [http://localhost:3000](http://localhost:3000) to view the Tübingen Search Engine.
+In the `/frontend` directory, start the React/Next.js development server:
+
+```bash
+npm run dev
+```
+
+Open your browser and navigate to [http://localhost:3000](http://localhost:3000) to view the Tübingen Search Engine.
