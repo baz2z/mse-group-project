@@ -23,10 +23,6 @@ def get_seed_urls() -> set[URL]:
     )
 
 
-def get_headers() -> dict[str, str]:
-    return {"User-Agent": USER_AGENT}
-
-
 @dataclass(frozen=True)
 class CrawlerConfig:
     DIR: Path = HARD_DRIVE
@@ -34,4 +30,3 @@ class CrawlerConfig:
     max_depth: int = 10
     timeout: float = 10
     seed_urls: set[URL] = field(default_factory=get_seed_urls)
-    headers: dict[str, str] = field(default_factory=get_headers)

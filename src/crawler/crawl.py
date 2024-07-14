@@ -32,6 +32,21 @@ DENIED_DOMAINS = {
     re.compile(r"reddit.com"),
 }
 
+headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/88.0.4324.150 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;"
+    "q=0.9,image/avif,image/webp,image/apng,*/*;"
+    "q=0.8,application/signed-exchange;v=b3;q=0.9",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Referer": "https://www.google.com/",
+    "Connection": "keep-alive",
+    "Upgrade-Insecure-Requests": "1",
+    "DNT": "1",
+}
+
 
 class Crawler:
     def __init__(self, run_id: str = "", config: CrawlerConfig | None = None):
@@ -43,15 +58,16 @@ class Crawler:
         self.html_dir.mkdir(parents=True, exist_ok=True)
 
         self._client: AsyncClient or None = None
-        self.logger = get_logger("crawler", logging.DEBUG)
+        self.logger = get_logger("crawler", logging.INFO)
 
         self.frontier: pd.DataFrame = self.load_frontier()
+        self.logger.info(f"Run ID: {self.run_id}, Frontier size: {len(self.frontier)}")
 
     @property
     def client(self) -> AsyncClient:
         if self._client is None:
-            self.logger.debug("Creating a new HTTP client")
-            self._client = AsyncClient(headers=self.config.headers)
+            self.logger.info("Creating a new HTTP client")
+            self._client = AsyncClient(headers=headers)
         return self._client
 
     @staticmethod
@@ -104,10 +120,10 @@ class Crawler:
     def load_frontier(self) -> pd.DataFrame:
         fp = self.base_dir / f"{self.run_id}.csv"
         if fp.exists():
-            self.logger.debug("Loading the existing frontier")
+            self.logger.info("Loading the existing frontier")
             return pd.read_csv(fp).set_index("doc_id")
         else:
-            self.logger.debug("Creating a new frontier")
+            self.logger.info("Creating a new frontier")
             return (
                 pd.DataFrame(self.convert_seed_to_frontier())
                 .drop_duplicates(subset=["doc_id"], keep="first")
@@ -241,7 +257,7 @@ class Crawler:
 
     async def close(self) -> None:
         if self._client:
-            self.logger.debug("Closing the HTTP client")
+            self.logger.info("Closing the HTTP client")
             await self._client.aclose()
             self._client = None
 
