@@ -7,7 +7,7 @@ import gc
 from contextlib import contextmanager
 from pathlib import Path
 sys.path.insert(0, Path(__file__).resolve().parents[1])
-print(Path(__file__).resolve().parents[1])
+# print(Path(__file__).resolve().parents[1])
 
 # internal imports:
 from retriever.text_embedding import BagOfWordsTokenizer, BertEmbedding
@@ -189,7 +189,7 @@ def retrieve(corpus_path, corpus, url_mapping, query, reranker="NLI",
 def mocked_retrieve(query):
     return [
       {
-        'link': 'https://uni-tuebingen.de/',
+        'link': 'https://scholar.google.com/citations?user=QQi1_rAAAAAJ&hl=ja',
         'title': 'Example Page 1',
         'abstract': 'This is a summary of example page 1.',
       },
@@ -197,6 +197,11 @@ def mocked_retrieve(query):
         'link': 'https://www.tuebingen-info.de',
         'title': 'Example Page 2',
         'abstract': 'This is a summary of example page 2.',
+      },
+    {
+        'link': 'https://neckarmueller.de/',
+        'title': 'Example Page 3',
+        'abstract': 'This is a summary of example page 3.',
       },
     ]
 

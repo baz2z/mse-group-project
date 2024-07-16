@@ -26,7 +26,8 @@ const SearchResult = ({ searchResult }) => {
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
         >
-          <iframe src={searchResult.link} title="preview"></iframe>
+          {/* include sandboxing for security during a deployment: sandbox="allow-same-origin" */}
+          <iframe src={searchResult.link} title="preview" ></iframe>
         </div>
       )}
     </div>

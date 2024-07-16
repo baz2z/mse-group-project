@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
-print(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
+# print(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 
 from retriever.main import mocked_retrieve
 
