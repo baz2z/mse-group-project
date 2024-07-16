@@ -7,18 +7,6 @@ from httpx import URL
 HARD_DRIVE = Path("D://")
 assert HARD_DRIVE.exists(), "Please connect the hard drive used for the project."
 
-BASE_DIR = HARD_DRIVE / "mse"
-HTML_DIR = BASE_DIR / "html"
-HTML_DIR.mkdir(parents=True, exist_ok=True)
-
-SEED_URLS = (
-    pd.read_json(BASE_DIR / "queries.jsonl", lines=True)
-    .links
-    .explode()
-    .apply(URL)
-    .tolist()
-)
-
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -26,14 +14,20 @@ USER_AGENT = (
 )
 
 
+def get_seed_urls() -> set[URL]:
+    return set(
+        URL(url)
+        for url in pd.read_json(
+            HARD_DRIVE / "query_results_v2.jsonl", lines=True
+        ).links.explode()
+    )
+
+
 @dataclass(frozen=True)
 class CrawlerConfig:
-    html_dir: Path = HTML_DIR
-    ids_dir: Path = BASE_DIR
-    max_docs: int = 100_000
-    max_depth: int = 5
-    sleep_time: float = 2
+    DIR: Path = HARD_DRIVE
+    batch_size: int = 256
+    max_depth: int = 10
     timeout: float = 10
-
-    seed_urls: list[URL] = field(default_factory=lambda: SEED_URLS)
-    headers: dict[str, str] = field(default_factory=lambda: {"User-Agent": USER_AGENT})
+    max_filesize: int = 10_000_000
+    seed_urls: set[URL] = field(default_factory=get_seed_urls)
