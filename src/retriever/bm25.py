@@ -61,6 +61,7 @@ class BM25:
         self.compute_average_document_length()
         self.compute_inverse_document_frequencies()
 
+
         self.average_idf = sum(self.idf.values()) / len(self.idf)
         if self.average_idf < 0:
             print(

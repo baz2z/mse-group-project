@@ -15,7 +15,7 @@ from retriever.bm25 import BM25
 from retriever.colBERT import colBERT
 from retriever.nli import DebertaV3
 from retriever.in_out import load_corpus_from_json_files, load_url_from_json_files, load_corpus, load_url_mapping_from_csv
-
+from retriever.sentEmb import sentEmb
 
 def pre_compute_bm25(embed, index_name, k, exist_ok=True):
     """
@@ -44,8 +44,24 @@ def pre_compute_bm25(embed, index_name, k, exist_ok=True):
     
     return bm25
 
+def pre_compute_sentemb(corpus, k, exist_ok=True):
+    path = f"dat/sentemb_{k}"
+    sentemb_exists = Path(f"{path}/").exists() 
+    sentemb = sentEmb(corpus, path)
 
-def create_colBERT(corpus_path, index_path, doc_ids=[], exist_ok=True):
+    if exist_ok and sentemb_exists:
+        print(f"\nSentence embeddings found at {path}. Using pre-computed sentence embeddings")
+        sentemb.load()
+        return sentemb
+
+    # Path(f"{path}").mkdir(parents=True, exist_ok=exist_ok)
+    sentemb.create()
+    sentemb.load()
+    return sentemb
+    
+
+
+def create_colBERT(corpus_path, index_path, k, doc_ids, exist_ok=True):
 
     path = f"dat/{index_path}"
     embeddings_exist = Path(f"{path}/").exists()
@@ -77,7 +93,7 @@ def main_bert():
                '34d3e4d5d2b95fe943d5595ab7ee3a84']
     
     query = 'Amazon vouchers'
-    bert = create_colBERT(corpus_path, index_folder, k, doc_ids, exist_ok=True)
+    bert = create_colBERT(corpus_path, index_folder, k, doc_ids, exist_ok=False)
     ranked_docs = bert.rank(query=query, top_k=5)
     
     print(f"Top 5 documents for query: {query}")
@@ -87,6 +103,31 @@ def main_bert():
     end_time = time.time()
     execution_time = end_time - start_time
     print(f"Execution time: {execution_time} seconds")
+
+def main_sentEmb():
+    k = 10
+
+    corpus_path = "dat/txt_en/"
+    mapping_path = "dat/latest_tubingen_en.csv"
+    corpus = load_corpus(corpus_path, k)
+    url_mapping = load_url_mapping_from_csv(mapping_path)
+
+    sentemb = pre_compute_sentemb(corpus, k, exist_ok=True)
+
+    start_time = time.time()
+
+    # Query tokenization
+    query = 'hölderlin'
+    
+    # Retrieve top n documents for the given query
+    top_n = sentemb.retrieve_top_n(query, k=5)
+    for doc_id, score in top_n:
+        print(f"Document ID: {doc_id}, Score: {score:.4f}, URL: {url_mapping.get(doc_id)}")
+    
+    end_time = time.time()
+    execution_time = end_time - start_time
+    print(f"Execution time: {execution_time} seconds")
+
 
 def main_bm25():
     
@@ -252,7 +293,7 @@ def batch(
         
         
 if __name__ == "__main__":
-    # main_bert()
+    main_sentEmb()
     # main_bm25()
     # main_nli()
     

@@ -12,6 +12,8 @@ from nltk.stem import PorterStemmer
 
 from transformers import BertTokenizer, BertModel
 from transformers import DebertaV2Tokenizer, DebertaV2Model
+from sentence_transformers import SentenceTransformer
+MODEL_NAME = 'sentence-transformers/all-MiniLM-L6-v2'
 
 sys.path.insert(0, Path(__file__).resolve().parents[1])
 
@@ -96,8 +98,9 @@ class BertEmbedding():
         # self.model = DebertaV2Model.from_pretrained('microsoft/deberta-v3-small')
         
         # Tiny_BERT embeddings   
-        self.tokenizer = BertTokenizer.from_pretrained('google/bert_uncased_L-4_H-256_A-4')
-        self.model = BertModel.from_pretrained('google/bert_uncased_L-4_H-256_A-4')
+        self.model = SentenceTransformer(MODEL_NAME)
+
+        
         
     @property
     def doc_ids(self):
@@ -164,24 +167,7 @@ class BertEmbedding():
         max_length = 512  # Assuming 512 is the max length for BART
 
 
-        # Step 1: Adjusted to chunk documents before calculating max tokens
-        max_tokens = 0
-        for doc_id, document in tqdm(self.corpus.items(), desc="Calculate max tokens"):
-            document = self.remove_stopwords(document)
-            document = re.sub(r'[\#\*\=\-\<\>\}]', '', document)
-            if not document:
-                document = " "
-            # Chunk the document
-            chunks = [document[i:i+max_length] for i in range(0, len(document), max_length)]
-            total_tokens = 0
-            for chunk in chunks:
-                inputs = self.tokenizer(chunk, return_tensors="pt", padding=True, truncation=True)
-                num_tokens = inputs.input_ids.size(1)
-                total_tokens += num_tokens  # Sum tokens for all chunks
-            if total_tokens > max_tokens:
-                max_tokens = total_tokens  # Update max_tokens if current document has more tokens
-
-        
+      
         # Step 2: Process each document, pad if necessary, and save
         for doc_id, document in tqdm(self.corpus.items(), desc="Create BERT embeddings per doc"):
             tensor_filename = f"{self.index_path}/{doc_id}.pt"
