@@ -103,8 +103,13 @@ class sentEmb():
         # Compute the embedding for each token
         token_embeddings = [self.model.encode(token, convert_to_tensor=True) for token in tokens]
         
-        # Optionally, you might want to stack or otherwise aggregate these embeddings
-        # For example, to stack them into a single tensor:
+        # Compute the embedding for the entire query
+        entire_query_embedding = self.model.encode(query, convert_to_tensor=True)
+        
+        # Add the entire query embedding to the list of token embeddings
+        token_embeddings.append(entire_query_embedding)
+        
+        # Stack them into a single tensor
         query_embedding = torch.stack(token_embeddings)
         
         return query_embedding
