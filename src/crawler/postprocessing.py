@@ -1,3 +1,4 @@
+import shutil
 from typing import NamedTuple
 
 import pandas as pd
@@ -60,7 +61,10 @@ include_tags = {"title", "h1", "h2", "h3", "h4", "h5", "h6", "p"}
 
 HTML_DIR = HARD_DRIVE / "mse_latest" / "html"
 TXT_DIR = HARD_DRIVE / "mse_latest" / "txt"
+TXT_EN_DIR = HARD_DRIVE / "mse_latest" / "txt_en"
+
 TXT_DIR.mkdir(parents=True, exist_ok=True)
+TXT_EN_DIR.mkdir(parents=True, exist_ok=True)
 
 
 class ProcessedDoc(NamedTuple):
@@ -99,33 +103,56 @@ def process_doc(content: bytes, doc_id: str):
     return ProcessedDoc(doc_id, text_content, lang)
 
 
-def txt_exists(doc_id: str) -> bool:
-    return bool(list(TXT_DIR.glob(f"{doc_id}_*.txt")))
-
-
 def process_all():
-    mappings = pd.read_csv(BASE_DIR / "latest.csv").query(
-        "status == 'completed' and features_tubingen"
+    mappings = (
+        pd.read_csv(BASE_DIR / "latest.csv")
+        .query("status == 'completed' and features_tubingen")
+        .sort_values("created", ascending=True)
+        .drop_duplicates("url", keep="first")
     )
+    txt_exist = set(fn.stem.split("_")[0] for fn in TXT_DIR.glob("*.txt"))
 
     for doc_id in tqdm(mappings.doc_id.unique()):
-        fn = HTML_DIR / f"{doc_id}.html"
-
-        if not fn.exists():
-            print(f"File {fn} does not exist.")
+        if doc_id in txt_exist:
             continue
 
-        if txt_exists(doc_id):
+        html_file = HTML_DIR / f"{doc_id}.html"
+        if not html_file.exists():
+            print(f"File {html_file} does not exist.")
             continue
 
         try:
-            res = process_doc(fn.read_bytes(), doc_id)
+            res = process_doc(html_file.read_bytes(), doc_id)
         except Exception as e:
             print(f"Error processing {doc_id}: {e}")
             res = ProcessedDoc(doc_id, "", None)
 
-        (TXT_DIR / res.fn).write_text(res.text, encoding="utf-8")
+        f_out = TXT_DIR / res.fn
+        f_out.write_text(res.text, encoding="utf-8")
+
+
+def clean_dir():
+    mappings = (
+        pd.read_csv(BASE_DIR / "latest.csv")
+        .query("status == 'completed' and features_tubingen")
+        .sort_values("created", ascending=True)
+        .drop_duplicates("url", keep="first")
+    )
+    for file in TXT_DIR.glob("*.txt"):
+        doc_id = file.stem.split("_")[0]
+        if doc_id not in mappings.doc_id.values:
+            file.unlink()
+
+
+def copy_en():
+    for file in TXT_DIR.glob("*_ENG.txt"):
+        f_out = TXT_EN_DIR / file.name
+
+        if f_out.exists():
+            continue
+
+        shutil.copy(file, f_out)
 
 
 if __name__ == "__main__":
-    process_all()
+    copy_en()
