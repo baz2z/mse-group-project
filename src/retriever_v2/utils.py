@@ -1,4 +1,5 @@
 import re
+from itertools import islice
 from pathlib import Path
 
 import torch
@@ -10,3 +11,12 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 STOPWORDS = set(stopwords.words("english"))
 TOKEN_PATTERN = re.compile(r"(?u)\b\w\w+\b")
+
+
+def batched(iterable, n):
+    if n < 1:
+        raise ValueError("n must be >= 1")
+
+    it = iter(iterable)
+    while batch := list(islice(it, n)):
+        yield batch

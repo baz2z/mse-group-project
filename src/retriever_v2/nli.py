@@ -1,10 +1,8 @@
-from itertools import batched
-
 import torch
 from transformers import AutoModelForSequenceClassification as AutoModel, AutoTokenizer
 
 from retriever_v2.base import BaseRetriever, Document, RetrievalScore
-from retriever_v2.utils import DEVICE
+from retriever_v2.utils import batched, DEVICE
 
 MODEL_NAME = "MoritzLaurer/deberta-v3-base-zeroshot-v2.0"
 
