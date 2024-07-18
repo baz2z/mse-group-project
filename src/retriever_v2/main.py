@@ -1,26 +1,26 @@
 import pickle
+from pathlib import Path
 
 import pandas as pd
 
 from retriever_v2.base import BaseRetriever, Document, RetrievalScore
 from retriever_v2.bm25 import BM25Retriever
 from retriever_v2.nli import NLIRetriever
-from retriever_v2.sim import SIMRetriever
+from retriever_v2.sim import SimRetriever
+from retriever_v2.utils import INDEX_DIR
 
 
 class EnsembleRetriever(BaseRetriever):
     @classmethod
-    def create(cls):
-        index = pd.read_csv()
-
-        bm25_retriever = BM25Retriever()
-        sim_retriever = SIMRetriever()
-
-
-        nli_retriever = NLIRetriever(
-            [Document(doc_id, text) for doc_id, text in index[["doc_id", "text"]].values]
-        )
-
+    def create(cls, index_path: Path = INDEX_DIR):
+        index = pd.read_csv(index_path / "index.csv")
+        documents = [
+            Document(file.stem["_"][0], file.read_text(encoding="utf-8"))
+            for file in (INDEX_DIR / "docs").glob("*.txt")
+        ]
+        sim_retriever = SimRetriever()
+        bm25_retriever = BM25Retriever(documents=documents)
+        nli_retriever = NLIRetriever(documents=documents)
         return cls(index, bm25_retriever, sim_retriever, nli_retriever)
 
     @classmethod
@@ -36,23 +36,24 @@ class EnsembleRetriever(BaseRetriever):
             self,
             index: pd.DataFrame,
             bm25_retriever: BM25Retriever,
-            sim_retriever: SIMRetriever,
+            sim_retriever: SimRetriever,
             nli_retriever: NLIRetriever,
             pre_k: int = 1_000,
+            max_res_per_domain: int = 10,
     ):
         self.index = index
         self.bm25_retriever = bm25_retriever
         self.sim_retriever = sim_retriever
         self.nli_retriever = nli_retriever
         self.pre_k = pre_k
+        self.max_res_per_domain = max_res_per_domain
 
     def score(self, query: str) -> list[RetrievalScore]:
         bm25_results = self.bm25_retriever.score(query=query)
         sim_results = self.sim_retriever.score(query=query)
         pre_results = pd.DataFrame(bm25_results + sim_results)
         pre_results["rank"] = pre_results.groupby("ranker")["score"].rank(
-            method="first",
-            ascending=False
+            method="first", ascending=False
         )
         pre_results = (
             pre_results.sort_values("rank", ascending=True)
@@ -67,21 +68,15 @@ class EnsembleRetriever(BaseRetriever):
         )
 
     def query(self, query: str, *, k: int = 100) -> pd.DataFrame:
-        """
-        1. score all documents
-        2. map score to index df (df with all docs and urls etc.)
-        3. perform magic like "only 3 urls per domain"
-        4. return top k
-        """
         scores = pd.DataFrame(self.score(query))
         df = pd.merge(self.index, scores, on="doc_id", how="inner")
-        df = df.sort_values("score", ascending=False)
-        df = df.groupby("domain").head(3).reset_index(drop=False)
-        return df.head(k)
+        return (
+            df.sort_values("score", ascending=False)
+            .loc[df.groupby("domain").cumcount() < self.max_res_per_domain]
+            .head(k)
+        )
 
-    def query_batch(self, queries: list[str], *, k: int = 100) -> dict[str, pd.DataFrame]:
+    def query_batch(
+            self, queries: list[str], *, k: int = 100
+    ) -> dict[str, pd.DataFrame]:
         raise NotImplementedError
-
-
-if __name__ == '__main__':
-    pass

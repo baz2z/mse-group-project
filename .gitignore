@@ -2,6 +2,10 @@ dat/
 .idea
 venv
 **/__pycache__
+src/retriever_v2/embeddings/*.npy
+src/retriever_v2/index/*.csv
+src/retriever_v2/index/docs/*.txt
+
 
 src/crawler/secrets_local.py
 src/crawler/serpapi_crawler.py
