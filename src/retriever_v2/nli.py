@@ -45,10 +45,10 @@ class NLIRetriever(BaseRetriever):
 
 
 if __name__ == '__main__':
-    docs = [
+    _docs = [
         Document("doc1", "This is a test document."),
         Document("doc2", "This document is another test."),
     ]
-    retriever = NLIRetriever(docs)
-    scores = retriever.score("test document")
-    print(scores)
+    retriever = NLIRetriever(_docs)
+    _scores = retriever.score("test document")
+    print(_scores)

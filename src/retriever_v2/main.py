@@ -1,4 +1,3 @@
-import pickle
 from pathlib import Path
 
 import pandas as pd
@@ -22,15 +21,6 @@ class EnsembleRetriever(BaseRetriever):
         bm25_retriever = BM25Retriever(documents=documents)
         nli_retriever = NLIRetriever(documents=documents)
         return cls(index, bm25_retriever, sim_retriever, nli_retriever)
-
-    @classmethod
-    def from_saved(cls, path: str):
-        with open(path, "rb") as f:
-            return pickle.load(f)
-
-    def save(self):
-        with open("ensemble_retriever.pkl", "wb") as f:
-            pickle.dump(self, f)
 
     def __init__(
             self,

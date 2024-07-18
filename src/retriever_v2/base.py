@@ -8,7 +8,7 @@ class Document(NamedTuple):
 
 
 class RetrievalScore(NamedTuple):
-    ranker: Literal["bm25", "sim", "nli", "ensemble"]
+    ranker: Literal["bm25", "sim", "nli"]
     doc_id: str
     score: float
 

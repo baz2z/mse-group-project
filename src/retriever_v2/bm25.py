@@ -8,7 +8,7 @@ from retriever_v2.utils import STOPWORDS, TOKEN_PATTERN
 STEMMER = SnowballStemmer("english")
 
 
-def tokenize(text: str):
+def stem_tokenize(text: str):
     return [
         STEMMER.stem(word.lower())
         for word in word_tokenize(text)
@@ -18,11 +18,11 @@ def tokenize(text: str):
 
 class BM25Retriever(BaseRetriever):
     def __init__(self, documents: list[Document]):
-        self.bm25 = BM25Okapi([tokenize(doc.text) for doc in documents])
         self.ids = [doc.doc_id for doc in documents]
+        self.bm25 = BM25Okapi([stem_tokenize(doc.text) for doc in documents])
 
     def score(self, query: str) -> list[RetrievalScore]:
-        scores = self.bm25.get_scores(tokenize(query))
+        scores = self.bm25.get_scores(stem_tokenize(query))
         return [
             RetrievalScore(doc_id=doc_id, score=score, ranker="bm25")
             for doc_id, score in zip(self.ids, scores)
@@ -35,5 +35,5 @@ if __name__ == '__main__':
         Document("doc2", "This document is another test."),
     ]
     retriever = BM25Retriever(docs)
-    scores = retriever.score("test document")
-    print(scores)
+    test_scores = retriever.score("test document")
+    print(test_scores)
