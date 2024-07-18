@@ -7,10 +7,13 @@ import heapq
 import math
 import pickle
 import sys
+import os
 
 PARAM_K1 = 1.5
 PARAM_B = 0.75
 IDF_CUTOFF = 0
+
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
 
 class BM25:
@@ -91,7 +94,9 @@ class BM25:
         self.avgdl = sum(self.doc_len)/len(self.doc_len)
 
     def save(self, filename):
-        with open(f"{filename}.pkl", "wb") as fsave:
+        full_path = os.path.join(BASE_DIR, 'retriever', filename)
+        print(f"path bm25 gets dumped in: {os.path.abspath(full_path)}")
+        with open(f"{full_path}.pkl", "wb") as fsave:
             pickle.dump(self, fsave, protocol=pickle.HIGHEST_PROTOCOL)
                 
     ### 
