@@ -11,7 +11,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from retriever_v2.base import BaseRetriever, Document, RetrievalScore
 from retriever_v2.utils import DEVICE, EMBEDDINGS_DIR, STOPWORDS, TOKEN_PATTERN
 
-MODEL_NAME = "all-mpnet-base-v2"
+MODEL_NAME = "all-MiniLM-L12-v2"
 
 
 def tokenize(text: str):
@@ -24,10 +24,10 @@ def tokenize(text: str):
 
 class SimRetriever(BaseRetriever):
     def __init__(
-            self,
-            model_name: str = MODEL_NAME,
-            embedding_dir: Path = EMBEDDINGS_DIR,
-            device: torch.device = DEVICE,
+        self,
+        model_name: str = MODEL_NAME,
+        embedding_dir: Path = EMBEDDINGS_DIR,
+        device: torch.device = DEVICE,
     ):
         self.model = SentenceTransformer(model_name).to(device)
         self.embeddings = np.load(embedding_dir / f"{model_name}.npy")
@@ -41,9 +41,7 @@ class SimRetriever(BaseRetriever):
             index=self.ids,
             columns=query_terms,
         )
-        sim_df_agg = sim_df.groupby(sim_df.index).apply(
-            lambda x: x.max(axis=0).sum() / len(query_terms)
-        )
+        sim_df_agg = sim_df.groupby(sim_df.index).apply(lambda x: x.max(axis=0).mean())
         return [
             RetrievalScore(doc_id=str(doc_id), score=float(score), ranker="sim")
             for doc_id, score in sim_df_agg.items()
@@ -51,13 +49,13 @@ class SimRetriever(BaseRetriever):
 
     @classmethod
     def pre_compute_embeddings(
-            cls,
-            documents: list[Document],
-            split_str: str = "\n\n",
-            max_chunks: int = 64,
-            model_name: str = MODEL_NAME,
-            embeddings_dir: Path = EMBEDDINGS_DIR,
-            device: torch.device = DEVICE,
+        cls,
+        documents: list[Document],
+        split_str: str = "\n\n",
+        max_chunks: int = 64,
+        model_name: str = MODEL_NAME,
+        embeddings_dir: Path = EMBEDDINGS_DIR,
+        device: torch.device = DEVICE,
     ):
         all_ids, all_chunks = [], []
         for doc in documents:
@@ -66,17 +64,7 @@ class SimRetriever(BaseRetriever):
             all_ids.extend([doc.doc_id] * len(chunks))
             all_chunks.extend(chunks)
 
-        model = SentenceTransformer(MODEL_NAME).to(device)
-        embeddings = model.encode(
-            all_chunks,
-            show_progress_bar=True,
-            normalize_embeddings=False,
-        )
+        model = SentenceTransformer(model_name).to(device)
+        embeddings = model.encode(all_chunks)
         np.save(embeddings_dir / "ids.npy", np.array(all_ids))
         np.save(embeddings_dir / model_name, embeddings)
-
-
-if __name__ == '__main__':
-    retriever = SimRetriever()
-    scores = retriever.score("test document")
-    print(scores)

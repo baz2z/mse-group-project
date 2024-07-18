@@ -14,7 +14,7 @@ class EnsembleRetriever(BaseRetriever):
     def create(cls, index_path: Path = INDEX_DIR):
         index = pd.read_csv(index_path / "index.csv")
         documents = [
-            Document(file.stem["_"][0], file.read_text(encoding="utf-8"))
+            Document(file.stem.split("_")[0], file.read_text(encoding="utf-8"))
             for file in (INDEX_DIR / "docs").glob("*.txt")
         ]
         sim_retriever = SimRetriever()
@@ -23,13 +23,13 @@ class EnsembleRetriever(BaseRetriever):
         return cls(index, bm25_retriever, sim_retriever, nli_retriever)
 
     def __init__(
-            self,
-            index: pd.DataFrame,
-            bm25_retriever: BM25Retriever,
-            sim_retriever: SimRetriever,
-            nli_retriever: NLIRetriever,
-            pre_k: int = 1_000,
-            max_res_per_domain: int = 10,
+        self,
+        index: pd.DataFrame,
+        bm25_retriever: BM25Retriever,
+        sim_retriever: SimRetriever,
+        nli_retriever: NLIRetriever,
+        pre_k: int = 1_000,
+        max_res_per_domain: int = 10,
     ):
         self.index = index
         self.bm25_retriever = bm25_retriever
@@ -67,6 +67,6 @@ class EnsembleRetriever(BaseRetriever):
         )
 
     def query_batch(
-            self, queries: list[str], *, k: int = 100
+        self, queries: list[str], *, k: int = 100
     ) -> dict[str, pd.DataFrame]:
         raise NotImplementedError

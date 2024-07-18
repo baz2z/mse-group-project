@@ -11,17 +11,19 @@ MODEL_NAME = "MoritzLaurer/deberta-v3-base-zeroshot-v2.0"
 
 class NLIRetriever(BaseRetriever):
     def __init__(
-            self,
-            documents: list[Document],
-            model_name: str = MODEL_NAME,
-            device: torch.device = DEVICE,
+        self,
+        documents: list[Document],
+        model_name: str = MODEL_NAME,
+        device: torch.device = DEVICE,
     ):
         self.docs = documents
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.model = AutoModel.from_pretrained(model_name).to(device)
 
     def score(self, query: str, filter_ids: set[str] = None) -> list[RetrievalScore]:
-        docs = [doc for doc in self.docs if filter_ids is None or doc.doc_id in filter_ids]
+        docs = [
+            doc for doc in self.docs if filter_ids is None or doc.doc_id in filter_ids
+        ]
         scores = []
         for batch in batched(docs, 8):
             enc = self.tokenizer(
@@ -42,13 +44,3 @@ class NLIRetriever(BaseRetriever):
                 )
 
         return scores
-
-
-if __name__ == '__main__':
-    _docs = [
-        Document("doc1", "This is a test document."),
-        Document("doc2", "This document is another test."),
-    ]
-    retriever = NLIRetriever(_docs)
-    _scores = retriever.score("test document")
-    print(_scores)
