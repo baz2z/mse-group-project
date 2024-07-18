@@ -3,6 +3,7 @@ torch
 nltk
 transformers
 scipy
+sentence-transformers
 
 # backend/requirements.txt
 fastapi
