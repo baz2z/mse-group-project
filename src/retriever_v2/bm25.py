@@ -7,7 +7,7 @@ from rank_bm25 import BM25Okapi
 from tqdm import tqdm
 
 from retriever_v2.base import BaseRetriever, Document, RetrievalScore
-from retriever_v2.utils import INDEX_DIR, STOPWORDS, TOKEN_PATTERN
+from retriever_v2.utils import PICKLES_DIR, STOPWORDS, TOKEN_PATTERN
 
 STEMMER = SnowballStemmer("english")
 
@@ -23,7 +23,7 @@ def stem_tokenize(text: str):
 class BM25Retriever(BaseRetriever):
     def __init__(
         self,
-        index_dir: Path = INDEX_DIR,
+        pickles_dir: Path = PICKLES_DIR,
         documents: list[Document] = None,
         k1: float = 2,
         b: float = 1,
@@ -31,13 +31,13 @@ class BM25Retriever(BaseRetriever):
         self.ids = [doc.doc_id for doc in documents]
 
         try:
-            with open(index_dir / "bm25.pkl", "rb") as f:
+            with open(pickles_dir / "bm25.pkl", "rb") as f:
                 self.bm25 = load(f)
         except FileNotFoundError:
             if not documents:
                 raise ValueError("No documents provided and no index found")
 
-            self.bm25 = self.precompute(documents, index_dir, k1, b)
+            self.bm25 = self.precompute(documents, pickles_dir, k1, b)
 
     def score(self, query: str) -> list[RetrievalScore]:
         if not (query_tokenized := stem_tokenize(query)):
@@ -52,7 +52,7 @@ class BM25Retriever(BaseRetriever):
     @staticmethod
     def precompute(
         documents: list[Document],
-        index_dir: Path = INDEX_DIR,
+        pickles_dir: Path = PICKLES_DIR,
         k1: float = 2,
         b: float = 1,
     ):
@@ -61,7 +61,7 @@ class BM25Retriever(BaseRetriever):
             k1=k1,
             b=b,
         )
-        with open(index_dir / "bm25.pkl", "wb") as f:
+        with open(pickles_dir / "bm25.pkl", "wb") as f:
             dump(bm25, f)
 
         return bm25
