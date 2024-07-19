@@ -17,7 +17,7 @@ class EnsembleRetriever(BaseRetriever):
             Document(file.stem.split("_")[0], file.read_text(encoding="utf-8"))
             for file in (INDEX_DIR / "docs").glob("*.txt")
         ]
-        sim_retriever = SimRetriever()
+        sim_retriever = SimRetriever(documents=documents)
         bm25_retriever = BM25Retriever(documents=documents)
         nli_retriever = NLIRetriever(documents=documents)
         return cls(index, bm25_retriever, sim_retriever, nli_retriever)
@@ -28,7 +28,7 @@ class EnsembleRetriever(BaseRetriever):
         bm25_retriever: BM25Retriever,
         sim_retriever: SimRetriever,
         nli_retriever: NLIRetriever,
-        pre_k: int = 1_000,
+        pre_k: int = 100,
         max_res_per_domain: int = 10,
     ):
         self.index = index
@@ -70,3 +70,8 @@ class EnsembleRetriever(BaseRetriever):
         self, queries: list[str], *, k: int = 100
     ) -> dict[str, pd.DataFrame]:
         raise NotImplementedError
+
+
+if __name__ == "__main__":
+    ensemble_retriever = EnsembleRetriever.create()
+    print(ensemble_retriever.score("Tübingen food and drink"))

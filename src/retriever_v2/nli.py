@@ -1,4 +1,5 @@
 import torch
+from tqdm import tqdm
 from transformers import AutoModelForSequenceClassification as AutoModel, AutoTokenizer
 
 from retriever_v2.base import BaseRetriever, Document, RetrievalScore
@@ -23,7 +24,7 @@ class NLIRetriever(BaseRetriever):
             doc for doc in self.docs if filter_ids is None or doc.doc_id in filter_ids
         ]
         scores = []
-        for batch in batched(docs, 8):
+        for batch in tqdm(batched(docs, 8)):
             enc = self.tokenizer(
                 [doc.text for doc in batch],
                 [query] * len(batch),

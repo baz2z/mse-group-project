@@ -25,13 +25,23 @@ def tokenize(text: str):
 class SimRetriever(BaseRetriever):
     def __init__(
         self,
+        documents: list[Document],
         model_name: str = MODEL_NAME,
         embedding_dir: Path = EMBEDDINGS_DIR,
         device: torch.device = DEVICE,
     ):
         self.model = SentenceTransformer(model_name).to(device)
-        self.embeddings = np.load(embedding_dir / f"{model_name}.npy")
-        self.ids = np.load(embedding_dir / "ids.npy")
+
+        try:
+            self.embeddings = np.load(embedding_dir / f"{model_name}.npy")
+            self.ids = np.load(embedding_dir / "ids.npy")
+        except FileNotFoundError:
+            self.embeddings, self.ids = self.pre_compute_embeddings(
+                documents=documents,
+                model_name=model_name,
+                embeddings_dir=embedding_dir,
+                device=device,
+            )
 
     def score(self, query: str) -> list[RetrievalScore]:
         query_terms = list({" ".join(query.split()), *tokenize(query)})
@@ -47,9 +57,8 @@ class SimRetriever(BaseRetriever):
             for doc_id, score in sim_df_agg.items()
         ]
 
-    @classmethod
+    @staticmethod
     def pre_compute_embeddings(
-        cls,
         documents: list[Document],
         split_str: str = "\n\n",
         max_chunks: int = 64,
@@ -66,5 +75,9 @@ class SimRetriever(BaseRetriever):
 
         model = SentenceTransformer(model_name).to(device)
         embeddings = model.encode(all_chunks)
-        np.save(embeddings_dir / "ids.npy", np.array(all_ids))
+
+        all_ids = np.array(all_ids)
+        np.save(embeddings_dir / "ids.npy", all_ids)
         np.save(embeddings_dir / model_name, embeddings)
+
+        return embeddings, all_ids
