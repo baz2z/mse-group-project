@@ -23,13 +23,13 @@ class EnsembleRetriever(BaseRetriever):
         return cls(index, bm25_retriever, sim_retriever, nli_retriever, **kwargs)
 
     def __init__(
-        self,
-        index: pd.DataFrame,
-        bm25_retriever: BM25Retriever,
-        sim_retriever: SimRetriever,
-        nli_retriever: NLIRetriever,
-        pre_k: int = 100,
-        max_res_per_domain: int = 10,
+            self,
+            index: pd.DataFrame,
+            bm25_retriever: BM25Retriever,
+            sim_retriever: SimRetriever,
+            nli_retriever: NLIRetriever,
+            pre_k: int = 100,
+            max_res_per_domain: int = 20,
     ):
         self.index = index
         self.bm25_retriever = bm25_retriever
@@ -59,19 +59,26 @@ class EnsembleRetriever(BaseRetriever):
 
     def query(self, query: str, *, k: int = 100) -> pd.DataFrame:
         scores = pd.DataFrame(self.score(query))
-        df = pd.merge(self.index, scores, on="doc_id", how="inner")
-        return (
-            df.sort_values("score", ascending=False)
-            .loc[df.groupby("domain").cumcount() < self.max_res_per_domain]
-            .head(k)
+        df = pd.merge(self.index, scores, on="doc_id", how="inner").sort_values(
+            "score", ascending=False
         )
+        domain_count = df.groupby("domain").cumcount()
+        df = pd.concat(
+            [
+                df.loc[domain_count < self.max_res_per_domain],
+                df.loc[domain_count >= self.max_res_per_domain],
+            ]
+        )
+        df["rank"] = list(range(1, len(df) + 1))
+        return df.head(k)
 
     def query_batch(
-        self, queries: list[str], *, k: int = 100
+            self, queries: list[str], *, k: int = 100
     ) -> dict[str, pd.DataFrame]:
         raise NotImplementedError
 
 
 if __name__ == "__main__":
     ensemble_retriever = EnsembleRetriever.create()
-    print(ensemble_retriever.score("Tübingen food and drink"))
+    r = ensemble_retriever.query("Tübingen food and drink")
+    r.to_csv("example_food_and_drinks.csv", index=False)
