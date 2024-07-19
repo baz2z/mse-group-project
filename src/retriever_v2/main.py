@@ -23,13 +23,13 @@ class EnsembleRetriever(BaseRetriever):
         return cls(index, bm25_retriever, sim_retriever, nli_retriever, **kwargs)
 
     def __init__(
-            self,
-            index: pd.DataFrame,
-            bm25_retriever: BM25Retriever,
-            sim_retriever: SimRetriever,
-            nli_retriever: NLIRetriever,
-            pre_k: int = 100,
-            max_res_per_domain: int = 20,
+        self,
+        index: pd.DataFrame,
+        bm25_retriever: BM25Retriever,
+        sim_retriever: SimRetriever,
+        nli_retriever: NLIRetriever,
+        pre_k: int = 100,
+        max_res_per_domain: int = 20,
     ):
         self.index = index
         self.bm25_retriever = bm25_retriever
@@ -50,11 +50,9 @@ class EnsembleRetriever(BaseRetriever):
             .drop_duplicates(subset="doc_id")
             .head(self.pre_k)
         )
-        return list(
-            self.nli_retriever.score(
-                query=query,
-                filter_ids=set(pre_results.doc_id),
-            )
+        return self.nli_retriever.score(
+            query=query,
+            filter_ids=set(pre_results.doc_id),
         )
 
     def query(self, query: str, *, k: int = 100) -> pd.DataFrame:
@@ -73,7 +71,7 @@ class EnsembleRetriever(BaseRetriever):
         return df.head(k)
 
     def query_batch(
-            self, queries: list[str], *, k: int = 100
+        self, queries: list[str], *, k: int = 100
     ) -> dict[str, pd.DataFrame]:
         raise NotImplementedError
 
