@@ -1,23 +1,11 @@
 from pathlib import Path
 from pickle import dump, load
 
-from nltk.stem import SnowballStemmer
-from nltk.tokenize import word_tokenize
 from rank_bm25 import BM25Okapi
 from tqdm import tqdm
 
 from retriever_v2.base import BaseRetriever, Document, RetrievalScore
-from retriever_v2.utils import PICKLES_DIR, STOPWORDS, TOKEN_PATTERN
-
-STEMMER = SnowballStemmer("english")
-
-
-def stem_tokenize(text: str):
-    return [
-        STEMMER.stem(word.lower())
-        for word in word_tokenize(text)
-        if word.lower() not in STOPWORDS and TOKEN_PATTERN.match(word)
-    ]
+from retriever_v2.utils import PICKLES_DIR, stem_tokenize
 
 
 class BM25Retriever(BaseRetriever):

@@ -6,9 +6,9 @@ from transformers import (
 )
 
 from retriever_v2.base import BaseRetriever, Document, RetrievalScore
-from retriever_v2.utils import batched, DEVICE
+from retriever_v2.utils import batched, DEVICE, tokenize
 
-MODEL_NAME = "MoritzLaurer/deberta-v3-base-zeroshot-v2.0"
+MODEL_NAME = "MoritzLaurer/deberta-v3-large-zeroshot-v2.0"
 
 
 class NLIRetriever(BaseRetriever):
@@ -23,7 +23,7 @@ class NLIRetriever(BaseRetriever):
         self.model = Model.from_pretrained(model_name).half().to(device)
 
     def score(self, query: str, filter_ids: set[str] = None) -> list[RetrievalScore]:
-        query_str = f"This text is about {query.lower()}"
+        query = "This text is about tübingen {}".format(" ".join(tokenize(query)))
         docs = sorted(
             (
                 doc
@@ -38,7 +38,7 @@ class NLIRetriever(BaseRetriever):
             for batch in tqdm(batched(docs, 8)):
                 enc = self.tokenizer(
                     [doc.text for doc in batch],
-                    [query_str] * len(batch),
+                    [query] * len(batch),
                     padding=True,
                     truncation=True,
                     return_tensors="pt",

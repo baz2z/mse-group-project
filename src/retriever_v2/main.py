@@ -28,7 +28,7 @@ class EnsembleRetriever(BaseRetriever):
         bm25_retriever: BM25Retriever,
         sim_retriever: SimRetriever,
         nli_retriever: NLIRetriever,
-        pre_k: int = 200,
+        pre_k: int = 100,
         max_res_per_domain: int = 20,
     ):
         self.index = index
@@ -78,5 +78,5 @@ class EnsembleRetriever(BaseRetriever):
 
 if __name__ == "__main__":
     ensemble_retriever = EnsembleRetriever.create()
-    r = ensemble_retriever.query("Carsten Eickhoff Tübingen")
+    r = ensemble_retriever.query("attractions")
     r.to_csv("example_food_and_drinks.csv", index=False)

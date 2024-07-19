@@ -4,22 +4,13 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import torch
-from nltk import word_tokenize
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 
 from retriever_v2.base import BaseRetriever, Document, RetrievalScore
-from retriever_v2.utils import DEVICE, EMBEDDINGS_DIR, STOPWORDS, TOKEN_PATTERN
+from retriever_v2.utils import DEVICE, EMBEDDINGS_DIR, tokenize
 
 MODEL_NAME = "all-MiniLM-L12-v2"
-
-
-def tokenize(text: str):
-    return [
-        word.lower()
-        for word in word_tokenize(text)
-        if word.lower() not in STOPWORDS and TOKEN_PATTERN.match(word)
-    ]
 
 
 class SimRetriever(BaseRetriever):
@@ -44,7 +35,9 @@ class SimRetriever(BaseRetriever):
             )
 
     def score(self, query: str) -> list[RetrievalScore]:
-        query_terms = list({" ".join(query.split()), *tokenize(query)})
+        query_terms = tokenize(query)
+        query_terms = list(set(query_terms + " ".join(query_terms)))
+
         query_embeddings = self.model.encode(query_terms)
         sim_df = pd.DataFrame(
             cosine_similarity(self.embeddings, query_embeddings),
