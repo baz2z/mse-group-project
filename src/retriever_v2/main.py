@@ -78,5 +78,5 @@ class EnsembleRetriever(BaseRetriever):
 
 if __name__ == "__main__":
     ensemble_retriever = EnsembleRetriever.create()
-    r = ensemble_retriever.query("Tübingen food and drink")
+    r = ensemble_retriever.query("Carsten Eickhoff Tübingen")
     r.to_csv("example_food_and_drinks.csv", index=False)

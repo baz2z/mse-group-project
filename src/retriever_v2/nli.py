@@ -20,26 +20,28 @@ class NLIRetriever(BaseRetriever):
         self.model = AutoModel.from_pretrained(model_name).to(device)
 
     def score(self, query: str, filter_ids: set[str] = None) -> list[RetrievalScore]:
+        query_str = f"This text is about {query.lower()}"
         docs = [
             doc for doc in self.docs if filter_ids is None or doc.doc_id in filter_ids
         ]
+
         scores = []
-        for batch in tqdm(batched(docs, 8)):
-            enc = self.tokenizer(
-                [doc.text for doc in batch],
-                [query] * len(batch),
-                padding=True,
-                truncation=True,
-                return_tensors="pt",
-            )
-            with torch.no_grad():
+        with torch.no_grad():
+            for batch in tqdm(batched(docs, 8)):
+                enc = self.tokenizer(
+                    [doc.text for doc in batch],
+                    [query_str] * len(batch),
+                    padding=True,
+                    truncation=True,
+                    return_tensors="pt",
+                )
                 logits = self.model(**enc.to(DEVICE)).logits.cpu()
 
-            for doc, logit in zip(batch, logits):
-                scores.append(
-                    RetrievalScore(
-                        doc_id=doc.doc_id, score=logit[0].item(), ranker="nli"
+                for doc, logit in zip(batch, logits):
+                    scores.append(
+                        RetrievalScore(
+                            doc_id=doc.doc_id, score=logit[0].item(), ranker="nli"
+                        )
                     )
-                )
 
         return scores
