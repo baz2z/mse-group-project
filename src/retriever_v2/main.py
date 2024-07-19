@@ -11,7 +11,7 @@ from retriever_v2.utils import INDEX_DIR
 
 class EnsembleRetriever(BaseRetriever):
     @classmethod
-    def create(cls, index_path: Path = INDEX_DIR):
+    def create(cls, index_path: Path = INDEX_DIR, **kwargs):
         index = pd.read_csv(index_path / "index.csv")
         documents = [
             Document(file.stem.split("_")[0], file.read_text(encoding="utf-8"))
@@ -20,7 +20,7 @@ class EnsembleRetriever(BaseRetriever):
         sim_retriever = SimRetriever(documents=documents)
         bm25_retriever = BM25Retriever(documents=documents)
         nli_retriever = NLIRetriever(documents=documents)
-        return cls(index, bm25_retriever, sim_retriever, nli_retriever)
+        return cls(index, bm25_retriever, sim_retriever, nli_retriever, **kwargs)
 
     def __init__(
         self,
