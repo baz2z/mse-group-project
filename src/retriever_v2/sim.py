@@ -35,8 +35,8 @@ class SimRetriever(BaseRetriever):
             )
 
     def score(self, query: str) -> list[RetrievalScore]:
-        query_terms = tokenize(query)
-        query_terms = list(set(query_terms + " ".join(query_terms)))
+        query_terms = tokenize(query, remove_tubingen=True) + ["tübingen"]
+        query_terms = list(set(query_terms + [" ".join(query_terms)]))
 
         query_embeddings = self.model.encode(query_terms)
         sim_df = pd.DataFrame(

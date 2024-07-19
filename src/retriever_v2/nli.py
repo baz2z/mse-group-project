@@ -23,7 +23,9 @@ class NLIRetriever(BaseRetriever):
         self.model = Model.from_pretrained(model_name).half().to(device)
 
     def score(self, query: str, filter_ids: set[str] = None) -> list[RetrievalScore]:
-        query = "This text is about tübingen {}".format(" ".join(tokenize(query)))
+        query = "This text is about {}.".format(
+            " ".join(tokenize(query, remove_tubingen=True) + ["tübingen"])
+        )
         docs = sorted(
             (
                 doc
