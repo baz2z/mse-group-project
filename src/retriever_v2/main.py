@@ -1,5 +1,6 @@
 from pathlib import Path
-
+import sys
+sys.path.append('/home/seb/Uni/MSE/mse-group-project/src')
 import pandas as pd
 
 from retriever_v2.base import BaseRetriever, Document, RetrievalScore
@@ -7,6 +8,7 @@ from retriever_v2.bm25 import BM25Retriever
 from retriever_v2.nli import NLIRetriever
 from retriever_v2.sim import SimRetriever
 from retriever_v2.utils import INDEX_DIR
+from retriever_v2.bm25manual import BM25ManualRetriever
 
 
 class EnsembleRetriever(BaseRetriever):
@@ -18,7 +20,8 @@ class EnsembleRetriever(BaseRetriever):
             for file in (INDEX_DIR / "docs").glob("*.txt")
         ]
         sim_retriever = SimRetriever(documents=documents)
-        bm25_retriever = BM25Retriever(documents=documents)
+        bm25_retriever = BM25ManualRetriever(documents=documents)
+        results = bm25_retriever.score("Graduate School of Neural & Behavioural Sciences")
         nli_retriever = NLIRetriever(documents=documents)
         return cls(index, bm25_retriever, sim_retriever, nli_retriever, **kwargs)
 
@@ -55,7 +58,7 @@ class EnsembleRetriever(BaseRetriever):
             filter_ids=set(pre_results.doc_id),
         )
 
-    def query(self, query: str, *, k: int = 100) -> pd.DataFrame:
+    def query(self, query: str, *, k: int = 5) -> pd.DataFrame:
         scores = pd.DataFrame(self.score(query))
         df = pd.merge(self.index, scores, on="doc_id", how="inner").sort_values(
             "score", ascending=False

@@ -8,7 +8,7 @@ from transformers import (
 from retriever_v2.base import BaseRetriever, Document, RetrievalScore
 from retriever_v2.utils import batched, DEVICE, tokenize
 
-MODEL_NAME = "MoritzLaurer/deberta-v3-large-zeroshot-v2.0"
+MODEL_NAME = "MoritzLaurer/deberta-v3-xsmall-zeroshot-v1.1-all-33"
 
 
 class NLIRetriever(BaseRetriever):
