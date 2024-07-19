@@ -28,7 +28,7 @@ class EnsembleRetriever(BaseRetriever):
         bm25_retriever: BM25Retriever,
         sim_retriever: SimRetriever,
         nli_retriever: NLIRetriever,
-        pre_k: int = 100,
+        pre_k: int = 200,
         max_res_per_domain: int = 20,
     ):
         self.index = index
