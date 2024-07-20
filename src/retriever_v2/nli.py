@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 import torch
 from tqdm import tqdm
@@ -93,7 +94,13 @@ class NLIRetriever(BaseRetriever):
 
         # return the maximum score for each document
         scores = pd.Series(scores, index=ids)
+        scores = scores.groupby(scores.index).apply(lambda x: (x.max(), x.values))
         return [
-            RetrievalScore(doc_id=str(doc_id), score=float(score), ranker="nli")
-            for doc_id, score in scores.groupby(scores.index).max().items()
+            RetrievalScore(
+                doc_id=str(doc_id),
+                score=float(score),
+                dist=np.array(dist, dtype=np.float16),
+                ranker="nli",
+            )
+            for doc_id, (score, dist) in scores.items()
         ]

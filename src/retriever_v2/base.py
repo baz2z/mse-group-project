@@ -2,6 +2,8 @@ from abc import ABC, abstractmethod
 from hashlib import sha256
 from typing import Literal, NamedTuple
 
+import numpy as np
+
 
 class Document(NamedTuple):
     doc_id: str
@@ -12,6 +14,7 @@ class RetrievalScore(NamedTuple):
     ranker: Literal["bm25", "sim", "nli"]
     doc_id: str
     score: float
+    dist: np.ndarray = np.zeros(8)
 
 
 class BaseRetriever(ABC):
