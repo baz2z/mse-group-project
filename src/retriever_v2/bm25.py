@@ -1,7 +1,6 @@
 import math
 import pickle
 from collections import Counter, defaultdict
-from hashlib import sha256
 from pathlib import Path
 from typing import NamedTuple
 
@@ -24,24 +23,16 @@ class BM25(NamedTuple):
 
 class BM25Retriever(BaseRetriever):
     def __init__(
-            self,
-            documents: list[Document],
-            pickles_dir: Path = PICKLES_DIR,
-            k1: float = 2,
-            b: float = 1,
+        self,
+        documents: list[Document],
+        pickles_dir: Path = PICKLES_DIR,
+        k1: float = 2,
+        b: float = 1,
     ):
         self.k1 = k1
         self.b = b
         self.ids: list[str] = [doc.doc_id for doc in documents]
         self.bm25: BM25 = self.load_bm25(documents=documents, pickles_dir=pickles_dir)
-
-    @staticmethod
-    def integrity_hash(documents: list[Document]) -> str:
-        return sha256(
-            "".join(doc.doc_id + doc.text for doc in documents).encode(
-                encoding="utf-8"
-            )
-        ).hexdigest()
 
     @staticmethod
     def tokenize_documents(documents: list[Document]) -> list[list[str]]:
@@ -112,9 +103,9 @@ class BM25Retriever(BaseRetriever):
         for q in query_terms_stemmed:
             q_freq = np.array([doc.get(q, 0) for doc in self.bm25.doc_freq])
             score += self.bm25.idf.get(q, 0) * (
-                    q_freq
-                    * (self.k1 + 1)
-                    / (q_freq + self.k1 * (1 - self.b + self.b * doc_len / avg_doc_len))
+                q_freq
+                * (self.k1 + 1)
+                / (q_freq + self.k1 * (1 - self.b + self.b * doc_len / avg_doc_len))
             )
 
         return [

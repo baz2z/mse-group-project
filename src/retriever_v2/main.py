@@ -1,39 +1,31 @@
 from pathlib import Path
+
 import pandas as pd
 
 from retriever_v2.base import BaseRetriever, Document, RetrievalScore
+from retriever_v2.bm25 import BM25Retriever
 from retriever_v2.nli import NLIRetriever
 from retriever_v2.sim import SimRetriever
 from retriever_v2.utils import INDEX_DIR
-from retriever_v2.bm25 import BM25Retriever
 
 
 class EnsembleRetriever(BaseRetriever):
-    @classmethod
-    def create(cls, index_path: Path = INDEX_DIR, **kwargs):
-        index = pd.read_csv(index_path / "index.csv")
-        documents = [
-            Document(file.stem.split("_")[0], file.read_text(encoding="utf-8"))
-            for file in (INDEX_DIR / "docs").glob("*.txt")
-        ]
-        sim_retriever = SimRetriever(documents=documents)
-        bm25_retriever = BM25Retriever(documents=documents)
-        nli_retriever = NLIRetriever(documents=documents)
-        return cls(index, bm25_retriever, sim_retriever, nli_retriever, **kwargs)
-
     def __init__(
         self,
-        index: pd.DataFrame,
-        bm25_retriever: BM25Retriever,
-        sim_retriever: SimRetriever,
-        nli_retriever: NLIRetriever,
+        index_path: Path = INDEX_DIR,
         pre_k: int = 100,
         max_res_per_domain: int = 20,
     ):
-        self.index = index
-        self.bm25_retriever = bm25_retriever
-        self.sim_retriever = sim_retriever
-        self.nli_retriever = nli_retriever
+        documents = [
+            Document(file.stem.split("_")[0], file.read_text(encoding="utf-8"))
+            for file in (index_path / "docs").glob("*.txt")
+        ]
+        docs_hash = self.integrity_hash(documents)
+
+        self.index = pd.read_csv(index_path / f"index_{docs_hash}.csv")
+        self.bm25_retriever = BM25Retriever(documents=documents)
+        self.sim_retriever = SimRetriever(documents=documents)
+        self.nli_retriever = NLIRetriever(documents=documents)
         self.pre_k = pre_k
         self.max_res_per_domain = max_res_per_domain
 
@@ -76,6 +68,6 @@ class EnsembleRetriever(BaseRetriever):
 
 
 if __name__ == "__main__":
-    ensemble_retriever = EnsembleRetriever.create()
+    ensemble_retriever = EnsembleRetriever()
     r = ensemble_retriever.query("attractions")
     r.to_csv("example_food_and_drinks.csv", index=False)

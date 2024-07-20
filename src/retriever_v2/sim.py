@@ -23,16 +23,20 @@ class SimRetriever(BaseRetriever):
     ):
         self.model = SentenceTransformer(model_name).to(device)
 
-        try:
-            self.embeddings = np.load(embedding_dir / f"{model_name}.npy")
-            self.ids = np.load(embedding_dir / "ids.npy")
-        except FileNotFoundError:
+        doc_hash = self.integrity_hash(documents)
+        embeddings_file = embedding_dir / f"{model_name}_{doc_hash}.npy"
+        ids_file = embedding_dir / f"ids_{doc_hash}.npy"
+
+        if not embeddings_file.exists() or not ids_file.exists():
             self.embeddings, self.ids = self.pre_compute_embeddings(
                 documents=documents,
                 model_name=model_name,
                 embeddings_dir=embedding_dir,
                 device=device,
             )
+        else:
+            self.ids = np.load(ids_file)
+            self.embeddings = np.load(embeddings_file)
 
     def score(self, query: str) -> list[RetrievalScore]:
         query_terms = tokenize(query, remove_tubingen=True) + ["tübingen"]
@@ -50,8 +54,8 @@ class SimRetriever(BaseRetriever):
             for doc_id, score in sim_df_agg.items()
         ]
 
-    @staticmethod
     def pre_compute_embeddings(
+        self,
         documents: list[Document],
         split_str: str = "\n\n",
         max_chunks: int = 64,
@@ -69,8 +73,10 @@ class SimRetriever(BaseRetriever):
         model = SentenceTransformer(model_name).to(device)
         embeddings = model.encode(all_chunks)
 
+        doc_hash = self.integrity_hash(documents)
+
         all_ids = np.array(all_ids)
-        np.save(embeddings_dir / "ids.npy", all_ids)
-        np.save(embeddings_dir / model_name, embeddings)
+        np.save(embeddings_dir / f"ids_{doc_hash}", all_ids)
+        np.save(embeddings_dir / f"{model_name}_{doc_hash}", embeddings)
 
         return embeddings, all_ids
