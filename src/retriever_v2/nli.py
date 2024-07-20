@@ -17,6 +17,7 @@ class NLIRetriever(BaseRetriever):
     """
     NLI retriever that uses a pretrained NLI model.
     """
+
     def __init__(
         self,
         documents: list[Document],

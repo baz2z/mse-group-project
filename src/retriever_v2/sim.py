@@ -1,6 +1,6 @@
 import logging
-import random
 from pathlib import Path
+from random import sample, seed
 
 import numpy as np
 import pandas as pd
@@ -19,6 +19,7 @@ class SimRetriever(BaseRetriever):
     """
     Similarity retriever that uses a pretrained sentence transformer model.
     """
+
     def __init__(
         self,
         documents: list[Document],
@@ -114,7 +115,9 @@ class SimRetriever(BaseRetriever):
             # split the documents into paragraphs
             if len(chunks := doc.text.split("\n\n")) > max_chunks:
                 # if we have more than max_chunks, sample max_chunks
-                chunks = random.sample(chunks, max_chunks)
+                seed(0)
+                sample_chunks = sample(range(len(chunks)), max_chunks)
+                chunks = [chunks[i] for i in sorted(sample_chunks)]
 
             all_ids.extend([doc.doc_id] * len(chunks))
             all_chunks.extend(chunks)
