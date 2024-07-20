@@ -7,14 +7,14 @@ from httpx import URL
 HARD_DRIVE = Path("D://")
 assert HARD_DRIVE.exists(), "Please connect the hard drive used for the project."
 
-USER_AGENT = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-    "AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/126.0.0.0 Safari/537.36"
-)
-
 
 def get_seed_urls() -> set[URL]:
+    """
+    Get the seed URLs from the query results.
+
+    Returns:
+        Set of seed URLs.
+    """
     return set(
         URL(url)
         for url in pd.read_json(
