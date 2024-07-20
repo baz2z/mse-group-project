@@ -1,9 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Lustria&display=swap');
 
-header {
-margin-bottom: 20px; /* Adjust the margin as needed */
-}
-
 h1, h2 {
   font-family: 'Lustria', serif;
 }

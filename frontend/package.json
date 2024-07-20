@@ -9,6 +9,8 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@colormap/core": "^0.2.0",
+    "@colormap/presets": "^0.2.0",
     "axios": "^1.7.2",
     "next": "14.2.4",
     "react": "^18",

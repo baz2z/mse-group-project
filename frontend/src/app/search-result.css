@@ -4,7 +4,6 @@
     padding: 20px;
     border-radius: 8px;
     transition: transform 0.2s;
-    background-color: #ffffff; /* Set a background color */
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Add a subtle shadow */
     z-index: 5;
     max-width: 300px; /* Adjust as needed */
@@ -35,6 +34,7 @@
     position: absolute;
     top: -50%;
     left: 103%;
+    min-width: 20vw;
     width: 120%; /* Adjust as needed */
     height: 200px; /* Adjust as needed */
     z-index: 10;
