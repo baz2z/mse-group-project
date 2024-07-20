@@ -13,16 +13,17 @@ class EnsembleRetriever(BaseRetriever):
     def __init__(
         self,
         index_path: Path = INDEX_DIR,
-        pre_k: int = 100,
+        pre_k: int = 128,
         max_res_per_domain: int = 20,
     ):
         documents = [
             Document(file.stem.split("_")[0], file.read_text(encoding="utf-8"))
             for file in (index_path / "docs").glob("*.txt")
         ]
-        docs_hash = self.integrity_hash(documents)
+        if not self.check_corpus_hash(documents):
+            raise ValueError("Corpus hash mismatch. Please re-index.")
 
-        self.index = pd.read_csv(index_path / f"index_{docs_hash}.csv")
+        self.index = pd.read_csv(index_path / f"index.csv")
         self.bm25_retriever = BM25Retriever(documents=documents)
         self.sim_retriever = SimRetriever(documents=documents)
         self.nli_retriever = NLIRetriever(documents=documents)
@@ -46,7 +47,7 @@ class EnsembleRetriever(BaseRetriever):
             filter_ids=set(pre_results.doc_id),
         )
 
-    def query(self, query: str, *, k: int = 5) -> pd.DataFrame:
+    def query(self, query: str, *, k: int = 100) -> pd.DataFrame:
         scores = pd.DataFrame(self.score(query))
         df = pd.merge(self.index, scores, on="doc_id", how="inner").sort_values(
             "score", ascending=False

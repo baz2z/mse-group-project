@@ -1,3 +1,4 @@
+import logging
 import random
 from pathlib import Path
 
@@ -22,21 +23,65 @@ class SimRetriever(BaseRetriever):
         device: torch.device = DEVICE,
     ):
         self.model = SentenceTransformer(model_name).to(device)
+        self.ids, self.embeddings = self._load_embeddings(
+            documents=documents,
+            model_name=model_name,
+            embeddings_dir=embedding_dir,
+            device=device,
+        )
 
-        doc_hash = self.integrity_hash(documents)
-        embeddings_file = embedding_dir / f"{model_name}_{doc_hash}.npy"
-        ids_file = embedding_dir / f"ids_{doc_hash}.npy"
+    @staticmethod
+    def _compute_embeddings(
+        documents: list[Document],
+        split_str: str = "\n\n",
+        max_chunks: int = 64,
+        model_name: str = MODEL_NAME,
+        device: torch.device = DEVICE,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        all_ids, all_chunks = [], []
+        for doc in documents:
+            if len(chunks := doc.text.split(split_str)) > max_chunks:
+                chunks = random.sample(chunks, max_chunks)
+            all_ids.extend([doc.doc_id] * len(chunks))
+            all_chunks.extend(chunks)
 
-        if not embeddings_file.exists() or not ids_file.exists():
-            self.embeddings, self.ids = self.pre_compute_embeddings(
+        model = SentenceTransformer(model_name).to(device)
+        embeddings = model.encode(all_chunks)
+
+        return np.array(all_ids), np.array(embeddings)
+
+    def _load_embeddings(
+        self,
+        documents: list[Document],
+        model_name: str = MODEL_NAME,
+        embeddings_dir: Path = EMBEDDINGS_DIR,
+        device: torch.device = DEVICE,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        if not self.check_corpus_hash(documents):
+            logging.warning("Corpus hash mismatch. Recomputing embeddings.")
+            return self._compute_embeddings(
                 documents=documents,
                 model_name=model_name,
-                embeddings_dir=embedding_dir,
                 device=device,
             )
-        else:
-            self.ids = np.load(ids_file)
-            self.embeddings = np.load(embeddings_file)
+
+        ids_file = embeddings_dir / "ids.npy"
+        embeddings_file = embeddings_dir / f"{model_name}.npy"
+
+        if ids_file.exists() and embeddings_file.exists():
+            return np.load(ids_file), np.load(embeddings_file)
+
+        logging.warning("Embeddings not found. Recomputing.")
+        ids, embeddings = self._compute_embeddings(
+            documents=documents,
+            model_name=model_name,
+            device=device,
+        )
+
+        np.save(ids_file, ids)
+        np.save(embeddings_file, embeddings)
+
+        return ids, embeddings
 
     def score(self, query: str) -> list[RetrievalScore]:
         query_terms = tokenize(query, remove_tubingen=True) + ["tübingen"]
@@ -53,30 +98,3 @@ class SimRetriever(BaseRetriever):
             RetrievalScore(doc_id=str(doc_id), score=float(score), ranker="sim")
             for doc_id, score in sim_df_agg.items()
         ]
-
-    def pre_compute_embeddings(
-        self,
-        documents: list[Document],
-        split_str: str = "\n\n",
-        max_chunks: int = 64,
-        model_name: str = MODEL_NAME,
-        embeddings_dir: Path = EMBEDDINGS_DIR,
-        device: torch.device = DEVICE,
-    ):
-        all_ids, all_chunks = [], []
-        for doc in documents:
-            if len(chunks := doc.text.split(split_str)) > max_chunks:
-                chunks = random.sample(chunks, max_chunks)
-            all_ids.extend([doc.doc_id] * len(chunks))
-            all_chunks.extend(chunks)
-
-        model = SentenceTransformer(model_name).to(device)
-        embeddings = model.encode(all_chunks)
-
-        doc_hash = self.integrity_hash(documents)
-
-        all_ids = np.array(all_ids)
-        np.save(embeddings_dir / f"ids_{doc_hash}", all_ids)
-        np.save(embeddings_dir / f"{model_name}_{doc_hash}", embeddings)
-
-        return embeddings, all_ids

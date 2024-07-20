@@ -1,3 +1,4 @@
+import pandas as pd
 import torch
 from tqdm import tqdm
 from transformers import (
@@ -6,9 +7,9 @@ from transformers import (
 )
 
 from retriever_v2.base import BaseRetriever, Document, RetrievalScore
-from retriever_v2.utils import batched, DEVICE, tokenize
+from retriever_v2.utils import batched, DEVICE, slice_string, tokenize
 
-MODEL_NAME = "MoritzLaurer/deberta-v3-xsmall-zeroshot-v1.1-all-33"
+MODEL_NAME = "MoritzLaurer/deberta-v3-base-zeroshot-v2.0"
 
 
 class NLIRetriever(BaseRetriever):
@@ -26,31 +27,35 @@ class NLIRetriever(BaseRetriever):
         query = "This text is about {}.".format(
             " ".join(tokenize(query, remove_tubingen=True) + ["tübingen"])
         )
-        docs = sorted(
-            (
-                doc
-                for doc in self.docs
-                if filter_ids is None or doc.doc_id in filter_ids
-            ),
-            key=lambda doc: len(doc.text),
-            reverse=True,
-        )
+        documents = [
+            doc for doc in self.docs if filter_ids is None or doc.doc_id in filter_ids
+        ]
+
+        batches, ids = [], []
+        for doc in documents:
+            for chunk in slice_string(doc.text[:16_384], 2_048):
+                if not chunk:
+                    continue
+
+                ids.append(doc.doc_id)
+                batches.append(chunk)
+
         scores = []
         with torch.no_grad():
-            for batch in tqdm(batched(docs, 8)):
+            for batch in tqdm(batched(batches, 8), desc="Computing NLI scores"):
                 enc = self.tokenizer(
-                    [doc.text for doc in batch],
+                    batch,
                     [query] * len(batch),
                     padding=True,
                     truncation=True,
+                    max_length=512,
                     return_tensors="pt",
                 )
                 logits = self.model(**enc.to(DEVICE)).logits.cpu()
-                scores.extend(
-                    RetrievalScore(
-                        doc_id=doc.doc_id, score=logit[0].item(), ranker="nli"
-                    )
-                    for doc, logit in zip(batch, logits)
-                )
+                scores.extend(logit[0].item() for logit in logits)
 
-        return scores
+        scores = pd.Series(scores, index=ids)
+        return [
+            RetrievalScore(doc_id=str(doc_id), score=float(score), ranker="nli")
+            for doc_id, score in scores.groupby(scores.index).max().items()
+        ]

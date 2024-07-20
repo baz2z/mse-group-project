@@ -1,3 +1,4 @@
+import logging
 import math
 import pickle
 from collections import Counter, defaultdict
@@ -18,7 +19,6 @@ class BM25(NamedTuple):
     idf: dict[str, float]
     doc_len: list[int]
     doc_freq: list[dict[str, int]]
-    integrity_hash: str
 
 
 class BM25Retriever(BaseRetriever):
@@ -48,14 +48,16 @@ class BM25Retriever(BaseRetriever):
         """
         Load BM25 config.
         """
-        fp = pickles_dir / f"{self.integrity_hash(documents)}.pkl"
+        if not self.check_corpus_hash(documents):
+            logging.warning("Corpus hash mismatch. Recomputing BM25.")
+            return self.prep_bm25(documents)
 
-        if fp.exists():
+        if (fp := pickles_dir / f"bm25.pkl").exists():
             return pickle.loads(fp.read_bytes())
 
+        logging.warning("BM25 pickle not found. Recomputing BM25.")
         bm25 = self.prep_bm25(documents)
         fp.write_bytes(pickle.dumps(bm25))
-
         return bm25
 
     def prep_bm25(self, documents: list[Document]) -> BM25:
@@ -82,12 +84,7 @@ class BM25Retriever(BaseRetriever):
         for word, freq in nd.items():
             idf[word] = math.log(total_docs - freq + 0.5) - math.log(freq + 0.5)
 
-        return BM25(
-            doc_freq=doc_freq,
-            idf=idf,
-            doc_len=doc_len,
-            integrity_hash=self.integrity_hash(documents),
-        )
+        return BM25(doc_freq=doc_freq, idf=idf, doc_len=doc_len)
 
     def score(self, query: str) -> list[RetrievalScore]:
         """

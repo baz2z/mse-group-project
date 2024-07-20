@@ -35,3 +35,14 @@ def batched(iterable, n):
     it = iter(iterable)
     while batch := list(islice(it, n)):
         yield batch
+
+
+def slice_string(text, max_len):
+    if max_len < 1:
+        raise ValueError("n must be >= 1")
+
+    for i in range(0, len(text), max_len):
+        if i + max_len < len(text):
+            yield text[i : i + max_len].strip()
+        else:
+            yield text[-max_len:].strip()

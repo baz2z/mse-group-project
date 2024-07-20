@@ -15,15 +15,22 @@ class RetrievalScore(NamedTuple):
 
 
 class BaseRetriever(ABC):
+    # Hash of the main corpus. Used to verify that the correct data is being used.
+    CORPUS_HASH: str = (
+        "09eee5888c6a2009773e3e8607a24f328494b28fcee7984b30356871d284fdd2"
+    )
+
     @abstractmethod
     def score(self, query: str) -> list[RetrievalScore]:
         pass
 
-    @staticmethod
-    def integrity_hash(documents: list[Document]) -> str:
-        return sha256(
-            "".join(
-                doc.doc_id + doc.text
-                for doc in sorted(documents, key=lambda x: x.doc_id)
-            ).encode(encoding="utf-8")
-        ).hexdigest()
+    def check_corpus_hash(self, documents: list[Document]) -> bool:
+        return (
+            sha256(
+                "".join(
+                    doc.doc_id + doc.text
+                    for doc in sorted(documents, key=lambda x: x.doc_id)
+                ).encode(encoding="utf-8")
+            ).hexdigest()
+            == self.CORPUS_HASH
+        )
