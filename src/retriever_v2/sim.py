@@ -17,12 +17,12 @@ MAX_CHUNKS = 64
 
 class SimRetriever(BaseRetriever):
     def __init__(
-            self,
-            documents: list[Document],
-            model_name: str = MODEL_NAME,
-            max_chunks: int = MAX_CHUNKS,
-            embedding_dir: Path = EMBEDDINGS_DIR,
-            device: torch.device = DEVICE,
+        self,
+        documents: list[Document],
+        model_name: str = MODEL_NAME,
+        max_chunks: int = MAX_CHUNKS,
+        embedding_dir: Path = EMBEDDINGS_DIR,
+        device: torch.device = DEVICE,
     ):
         """
         Initialize the similarity retriever.
@@ -49,11 +49,11 @@ class SimRetriever(BaseRetriever):
         )
 
     def _load_embeddings(
-            self,
-            documents: list[Document],
-            model_name: str,
-            max_chunks: int,
-            embeddings_dir: Path,
+        self,
+        documents: list[Document],
+        model_name: str,
+        max_chunks: int,
+        embeddings_dir: Path,
     ) -> tuple[np.ndarray, np.ndarray]:
         """
         Load embeddings from disk or compute them.
@@ -81,7 +81,9 @@ class SimRetriever(BaseRetriever):
 
         # if embeddings are not found, recompute them
         logging.warning("Embeddings not found. Recomputing.")
-        ids, embeddings = self._compute_embeddings(documents=documents, max_chunks=max_chunks)
+        ids, embeddings = self._compute_embeddings(
+            documents=documents, max_chunks=max_chunks
+        )
 
         # save the embeddings to disk
         np.save(ids_file, ids)
@@ -90,9 +92,9 @@ class SimRetriever(BaseRetriever):
         return ids, embeddings
 
     def _compute_embeddings(
-            self,
-            documents: list[Document],
-            max_chunks: int,
+        self,
+        documents: list[Document],
+        max_chunks: int,
     ) -> tuple[np.ndarray, np.ndarray]:
         """
         Compute embeddings for each document paragraph.

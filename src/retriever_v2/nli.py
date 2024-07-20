@@ -9,15 +9,17 @@ from transformers import (
 from retriever_v2.base import BaseRetriever, Document, RetrievalScore
 from retriever_v2.utils import batched, DEVICE, slice_string, tokenize
 
-MODEL_NAME = "MoritzLaurer/deberta-v3-base-zeroshot-v2.0"
+MODEL_NAME = "MoritzLaurer/deberta-v3-large-zeroshot-v2.0"
+MODEL_NAME_FAST = "MoritzLaurer/deberta-v3-xsmall-zeroshot-v1.1-all-33"
 
 
 class NLIRetriever(BaseRetriever):
     def __init__(
-            self,
-            documents: list[Document],
-            model_name: str = MODEL_NAME,
-            device: torch.device = DEVICE,
+        self,
+        documents: list[Document],
+        model_name: str = MODEL_NAME,
+        device: torch.device = DEVICE,
+        use_fast: bool = False,
     ):
         """
         Initialize the NLI retriever.
@@ -30,6 +32,9 @@ class NLIRetriever(BaseRetriever):
         Returns:
             None
         """
+        if use_fast:
+            model_name = MODEL_NAME_FAST
+
         self.docs = documents
 
         # loading the pretrained model and tokenizer

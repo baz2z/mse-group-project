@@ -13,11 +13,13 @@ class EnsembleRetriever(BaseRetriever):
     """
     Ensemble retriever that combines BM25, similarity, and NLI retrievers.
     """
+
     def __init__(
         self,
         index_path: Path = INDEX_DIR,
-        pre_k: int = 128,
+        pre_k: int = 512,
         max_res_per_domain: int = 20,
+        use_fast: bool = False,
     ):
         """
         Initialize the ensemble retriever.
@@ -37,12 +39,14 @@ class EnsembleRetriever(BaseRetriever):
         if not self.check_corpus_hash(documents):
             raise ValueError("Corpus hash mismatch. Please re-index.")
 
+        self.use_fast = use_fast
+        self.pre_k = pre_k
+        self.max_res_per_domain = max_res_per_domain
+
         self.index = pd.read_csv(index_path / f"index.csv")
         self.bm25_retriever = BM25Retriever(documents=documents)
         self.sim_retriever = SimRetriever(documents=documents)
-        self.nli_retriever = NLIRetriever(documents=documents)
-        self.pre_k = pre_k
-        self.max_res_per_domain = max_res_per_domain
+        self.nli_retriever = NLIRetriever(documents=documents, use_fast=use_fast)
 
     def score(self, query: str) -> list[RetrievalScore]:
         """
@@ -86,6 +90,9 @@ class EnsembleRetriever(BaseRetriever):
         Returns:
             DataFrame with the top k results
         """
+        if self.use_fast:
+            self.pre_k = k
+
         scores = pd.DataFrame(self.score(query))
         df = pd.merge(self.index, scores, on="doc_id", how="inner").sort_values(
             "score", ascending=False
@@ -117,6 +124,6 @@ class EnsembleRetriever(BaseRetriever):
 
 
 if __name__ == "__main__":
-    ensemble_retriever = EnsembleRetriever()
+    ensemble_retriever = EnsembleRetriever(use_fast=True)
     r = ensemble_retriever.query("attractions")
     r.to_csv("example_food_and_drinks.csv", index=False)

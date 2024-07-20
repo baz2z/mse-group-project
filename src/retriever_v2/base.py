@@ -18,6 +18,7 @@ class BaseRetriever(ABC):
     """
     Base class for retrievers.
     """
+
     # Hash of the main text corpus. Used to verify that the correct data is being used.
     CORPUS_HASH: str = (
         "09eee5888c6a2009773e3e8607a24f328494b28fcee7984b30356871d284fdd2"
