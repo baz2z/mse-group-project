@@ -1,8 +1,12 @@
+import math
+import pickle
+from collections import Counter, defaultdict
+from hashlib import sha256
 from pathlib import Path
-from pickle import dump, load
+from typing import NamedTuple
 
+import numpy as np
 from nltk import SnowballStemmer
-from rank_bm25 import BM25Okapi
 from tqdm import tqdm
 
 from retriever_v2.base import BaseRetriever, Document, RetrievalScore
@@ -11,53 +15,109 @@ from retriever_v2.utils import PICKLES_DIR, tokenize
 STEMMER = SnowballStemmer("english")
 
 
+class BM25(NamedTuple):
+    idf: dict[str, float]
+    doc_len: list[int]
+    doc_freq: list[dict[str, int]]
+    integrity_hash: str
+
+
 class BM25Retriever(BaseRetriever):
     def __init__(
-        self,
-        pickles_dir: Path = PICKLES_DIR,
-        documents: list[Document] = None,
-        k1: float = 2,
-        b: float = 1,
+            self,
+            documents: list[Document],
+            pickles_dir: Path = PICKLES_DIR,
+            k1: float = 2,
+            b: float = 1,
     ):
-        self.ids = [doc.doc_id for doc in documents]
-
-        try:
-            with open(pickles_dir / "bm25.pkl", "rb") as f:
-                self.bm25 = load(f)
-        except FileNotFoundError:
-            if not documents:
-                raise ValueError("No documents provided and no index found")
-
-            self.bm25 = self.precompute(documents, pickles_dir, k1, b)
-
-    def score(self, query: str) -> list[RetrievalScore]:
-        query_terms = tokenize(query, remove_tubingen=True) + ["tübingen"]
-        query_terms_stemmed = [STEMMER.stem(word) for word in query_terms]
-        scores = self.bm25.get_scores(query_terms_stemmed)
-        return [
-            RetrievalScore(doc_id=doc_id, score=score, ranker="bm25")
-            for doc_id, score in zip(self.ids, scores)
-        ]
+        self.k1 = k1
+        self.b = b
+        self.ids: list[str] = [doc.doc_id for doc in documents]
+        self.bm25: BM25 = self.load_bm25(documents=documents, pickles_dir=pickles_dir)
 
     @staticmethod
-    def precompute(
-        documents: list[Document],
-        pickles_dir: Path = PICKLES_DIR,
-        k1: float = 2,
-        b: float = 1,
-    ):
-        bm25 = BM25Okapi(
-            [
-                [
-                    STEMMER.stem(word)
-                    for word in tokenize(doc.text, remove_tubingen=False)
-                ]
-                for doc in tqdm(documents, desc="Precomputing BM25")
-            ],
-            k1=k1,
-            b=b,
-        )
-        with open(pickles_dir / "bm25.pkl", "wb") as f:
-            dump(bm25, f)
+    def integrity_hash(documents: list[Document]) -> str:
+        return sha256(
+            "".join(doc.doc_id + doc.text for doc in documents).encode(
+                encoding="utf-8"
+            )
+        ).hexdigest()
+
+    @staticmethod
+    def tokenize_documents(documents: list[Document]) -> list[list[str]]:
+        """
+        Tokenize documents.
+        """
+        return [
+            [STEMMER.stem(word) for word in tokenize(doc.text, remove_tubingen=False)]
+            for doc in tqdm(documents, desc="Tokenizing documents")
+        ]
+
+    def load_bm25(self, documents: list[Document], pickles_dir: Path) -> BM25:
+        """
+        Load BM25 config.
+        """
+        fp = pickles_dir / f"{self.integrity_hash(documents)}.pkl"
+
+        if fp.exists():
+            return pickle.loads(fp.read_bytes())
+
+        bm25 = self.prep_bm25(documents)
+        fp.write_bytes(pickle.dumps(bm25))
 
         return bm25
+
+    def prep_bm25(self, documents: list[Document]) -> BM25:
+        """
+        Preprocess documents to compute BM25 config.
+        """
+        if not documents:
+            raise ValueError("No documents provided")
+
+        doc_len: list[int] = []
+        doc_freq: list[dict[str, int]] = []
+
+        nd: dict[str, int] = defaultdict(int)
+        for doc in self.tokenize_documents(documents):
+            frequencies: dict[str, int] = Counter(doc)
+            doc_len.append(len(doc))
+            doc_freq.append(frequencies)
+
+            for word, freq in frequencies.items():
+                nd[word] += 1
+
+        idf: dict[str, float] = {}
+        total_docs = len(documents)
+        for word, freq in nd.items():
+            idf[word] = math.log(total_docs - freq + 0.5) - math.log(freq + 0.5)
+
+        return BM25(
+            doc_freq=doc_freq,
+            idf=idf,
+            doc_len=doc_len,
+            integrity_hash=self.integrity_hash(documents),
+        )
+
+    def score(self, query: str) -> list[RetrievalScore]:
+        """
+        Compute BM25 scores for each document given a query.
+        """
+        query_terms = tokenize(query, remove_tubingen=True) + ["tübingen"]
+        query_terms_stemmed = [STEMMER.stem(word) for word in query_terms]
+
+        score = np.zeros(len(self.ids))
+        doc_len = np.array(self.bm25.doc_len)
+        avg_doc_len = np.mean(doc_len)
+
+        for q in query_terms_stemmed:
+            q_freq = np.array([doc.get(q, 0) for doc in self.bm25.doc_freq])
+            score += self.bm25.idf.get(q, 0) * (
+                    q_freq
+                    * (self.k1 + 1)
+                    / (q_freq + self.k1 * (1 - self.b + self.b * doc_len / avg_doc_len))
+            )
+
+        return [
+            RetrievalScore(doc_id=doc_id, score=score, ranker="bm25")
+            for doc_id, score in zip(self.ids, score)
+        ]

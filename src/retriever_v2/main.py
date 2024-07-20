@@ -1,14 +1,11 @@
 from pathlib import Path
-import sys
-sys.path.append('/home/seb/Uni/MSE/mse-group-project/src')
 import pandas as pd
 
 from retriever_v2.base import BaseRetriever, Document, RetrievalScore
-from retriever_v2.bm25 import BM25Retriever
 from retriever_v2.nli import NLIRetriever
 from retriever_v2.sim import SimRetriever
 from retriever_v2.utils import INDEX_DIR
-from retriever_v2.bm25manual import BM25ManualRetriever
+from retriever_v2.bm25 import BM25Retriever
 
 
 class EnsembleRetriever(BaseRetriever):
@@ -20,8 +17,7 @@ class EnsembleRetriever(BaseRetriever):
             for file in (INDEX_DIR / "docs").glob("*.txt")
         ]
         sim_retriever = SimRetriever(documents=documents)
-        bm25_retriever = BM25ManualRetriever(documents=documents)
-        results = bm25_retriever.score("Graduate School of Neural & Behavioural Sciences")
+        bm25_retriever = BM25Retriever(documents=documents)
         nli_retriever = NLIRetriever(documents=documents)
         return cls(index, bm25_retriever, sim_retriever, nli_retriever, **kwargs)
 
