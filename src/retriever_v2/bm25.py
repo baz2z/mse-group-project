@@ -22,6 +22,9 @@ class BM25(NamedTuple):
 
 
 class BM25Retriever(BaseRetriever):
+    """
+    BM25 retriever that uses the BM25 algorithm.
+    """
     def __init__(
         self,
         documents: list[Document],

@@ -16,6 +16,9 @@ MAX_CHUNKS = 64
 
 
 class SimRetriever(BaseRetriever):
+    """
+    Similarity retriever that uses a pretrained sentence transformer model.
+    """
     def __init__(
         self,
         documents: list[Document],

@@ -14,6 +14,9 @@ MODEL_NAME_FAST = "MoritzLaurer/deberta-v3-xsmall-zeroshot-v1.1-all-33"
 
 
 class NLIRetriever(BaseRetriever):
+    """
+    NLI retriever that uses a pretrained NLI model.
+    """
     def __init__(
         self,
         documents: list[Document],
