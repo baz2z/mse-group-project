@@ -1,6 +1,7 @@
 import re
 from itertools import islice
 from pathlib import Path
+from typing import Iterable
 
 import torch
 from nltk import word_tokenize
@@ -17,7 +18,17 @@ TOKEN_PATTERN = re.compile(r"(?u)\b\w\w+\b")
 STOPWORDS = set(stopwords.words("english"))
 
 
-def tokenize(text: str, remove_tubingen: bool):
+def tokenize(text: str, remove_tubingen: bool) -> list[str]:
+    """
+    Tokenize text and remove stopwords.
+
+    Args:
+        text: Input text
+        remove_tubingen: Whether to remove "tübingen" from the text
+
+    Returns:
+        List of tokens
+    """
     if remove_tubingen:
         text = TUBINGEN_PATTERN.sub("", text)
 
@@ -28,7 +39,17 @@ def tokenize(text: str, remove_tubingen: bool):
     ]
 
 
-def batched(iterable, n):
+def batched(iterable, n) -> Iterable[list]:
+    """
+    Yield batches of size n from an iterable.
+
+    Args:
+        iterable: Iterable object
+        n: Batch size
+
+    Returns:
+        Iterable of batches
+    """
     if n < 1:
         raise ValueError("n must be >= 1")
 
@@ -37,7 +58,17 @@ def batched(iterable, n):
         yield batch
 
 
-def slice_string(text, max_len):
+def slice_string(text: str, max_len: int) -> Iterable[str]:
+    """
+    Yield slices of text with maximum length max_len.
+
+    Args:
+        text: Input text
+        max_len: Maximum length of each slice
+
+    Returns:
+        Iterable of text slices
+    """
     if max_len < 1:
         raise ValueError("n must be >= 1")
 

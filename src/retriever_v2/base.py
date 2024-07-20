@@ -15,7 +15,10 @@ class RetrievalScore(NamedTuple):
 
 
 class BaseRetriever(ABC):
-    # Hash of the main corpus. Used to verify that the correct data is being used.
+    """
+    Base class for retrievers.
+    """
+    # Hash of the main text corpus. Used to verify that the correct data is being used.
     CORPUS_HASH: str = (
         "09eee5888c6a2009773e3e8607a24f328494b28fcee7984b30356871d284fdd2"
     )
@@ -25,6 +28,16 @@ class BaseRetriever(ABC):
         pass
 
     def check_corpus_hash(self, documents: list[Document]) -> bool:
+        """
+        Check if the documents match the main corpus hash.
+
+        Args:
+            documents: List of Document objects
+
+        Returns:
+            True if the documents match the main corpus hash, False otherwise.
+        """
+        # concatenate all document IDs and texts and hash them
         return (
             sha256(
                 "".join(

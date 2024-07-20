@@ -29,6 +29,15 @@ class BM25Retriever(BaseRetriever):
         k1: float = 2,
         b: float = 1,
     ):
+        """
+        Initialize the BM25 retriever.
+
+        Args:
+            documents: List of Document objects
+            pickles_dir: Directory to save/load BM25 config
+            k1: BM25 parameter, controls term frequency scaling
+            b: BM25 parameter, controls document length scaling
+        """
         self.k1 = k1
         self.b = b
         self.ids: list[str] = [doc.doc_id for doc in documents]
@@ -38,6 +47,12 @@ class BM25Retriever(BaseRetriever):
     def tokenize_documents(documents: list[Document]) -> list[list[str]]:
         """
         Tokenize documents.
+
+        Args:
+            documents: List of Document objects
+
+        Returns:
+            List of tokenized documents
         """
         return [
             [STEMMER.stem(word) for word in tokenize(doc.text, remove_tubingen=False)]
@@ -47,6 +62,13 @@ class BM25Retriever(BaseRetriever):
     def load_bm25(self, documents: list[Document], pickles_dir: Path) -> BM25:
         """
         Load BM25 config.
+
+        Args:
+            documents: List of Document objects
+            pickles_dir: Directory to save/load BM25 config
+
+        Returns:
+            BM25 config
         """
         if not self.check_corpus_hash(documents):
             logging.warning("Corpus hash mismatch. Recomputing BM25.")
@@ -63,6 +85,12 @@ class BM25Retriever(BaseRetriever):
     def prep_bm25(self, documents: list[Document]) -> BM25:
         """
         Preprocess documents to compute BM25 config.
+
+        Args:
+            documents: List of Document objects
+
+        Returns:
+            BM25 config
         """
         if not documents:
             raise ValueError("No documents provided")
@@ -89,6 +117,12 @@ class BM25Retriever(BaseRetriever):
     def score(self, query: str) -> list[RetrievalScore]:
         """
         Compute BM25 scores for each document given a query.
+
+        Args:
+            query: Query string, e.g., "tübingen football club"
+
+        Returns:
+            List of RetrievalScore objects
         """
         query_terms = tokenize(query, remove_tubingen=True) + ["tübingen"]
         query_terms_stemmed = [STEMMER.stem(word) for word in query_terms]
