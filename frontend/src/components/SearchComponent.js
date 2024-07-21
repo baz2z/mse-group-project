@@ -107,27 +107,26 @@ const SearchComponent = () => {
         Advanced Search
       </span>
     </div>
-        {/* Category Selection Buttons */}
-      <div
-        className={`overflow-hidden transition-all duration-[1000ms] ${showCategories ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}`}
+{/* Category Selection Buttons */}
+<div
+  className={`overflow-hidden transition-all duration-[1000ms] ${showCategories ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}`}
+>
+  <div className="flex flex-wrap justify-center mt-2 max-w-md mx-auto">
+    {Object.keys(categories).map((category) => (
+      <button
+        key={category}
+        onClick={() => handleCategoryChange(category)}
+        className={`m-2 px-4 py-1.5 rounded-full transition-colors duration-300 ${
+          category === selectedCategory
+            ? 'bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 text-white shadow-inner'
+            : 'text-white border border-white hover:bg-white hover:bg-opacity-50'
+        }`}
       >
-        <div className="flex flex-wrap justify-center mt-2 max-w-md mx-auto">
-          {Object.keys(categories).map((category) => (
-            <button
-              key={category}
-              onClick={() => handleCategoryChange(category)}
-              className={`m-2 px-4 py-1.5 rounded-full transition-colors duration-300 ${
-                category === selectedCategory
-                  ? 'bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 text-white shadow-inner'
-                  : 'bg-gray-200 opacity-90 text-gray-800 hover:bg-gray-300'
-              }`}
-            >
-              {category}
-            </button>
-          ))}
-        </div>
-      </div>
-
+        {category}
+      </button>
+    ))}
+  </div>
+</div>
     </div>
 
 </div>

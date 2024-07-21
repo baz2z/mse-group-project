@@ -1,5 +1,10 @@
 import "./globals.css";
 import Head from 'next/head';
+import { library } from '@fortawesome/fontawesome-svg-core';
+import { fab } from '@fortawesome/free-brands-svg-icons';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+
+library.add(fab);
 
 export const metadata = {
   title: "Tübingen Search Engine",
@@ -17,17 +22,23 @@ export default function RootLayout({ children }) {
           crossOrigin="anonymous"
         />
       </Head>
+      <Head>
+        <link rel='icon' href='/old_favicon.ico' />  
+      </Head>
       <body className="flex flex-col min-h-screen">
-        <nav className="absolute top-0 left-0 w-full bg-transparent z-10">
-          <div className="container mx-auto flex items-center p-4 pl-14">
+        <nav className="absolute top-0 left-0 w-full z-20 bg-gradient-to-r from-white/20 to-white/10 backdrop-blur-md shadow-lg">
+          <div className="container mx-auto flex items-center justify-between p-4 pl-10 pr-1">
             <div className="flex items-center">
-              <img src="/uni_tuebingen_logo_black_white.png" alt="Tübingen Search Engine Logo" className="h-16 w-auto" />
+              <img src="/uni_tuebingen_logo_black_white.png" alt="Tübingen Search Engine Logo" className="h-12 w-auto" />
             </div>
+            <a href="https://github.com/baz2z/mse-group-project" target="_blank" rel="noopener noreferrer" className="text-gray-800 hover:text-gray-600">
+              <FontAwesomeIcon icon={['fab', 'github']} size="2x" className="w-8 h-8" />
+            </a>
           </div>
         </nav>
-        <main className="flex flex-1 flex-col">
-          {children}
+        <main style={{ backgroundImage: `url(/tuebingen_neckar_1.jpg)`, backgroundSize: 'cover', filter: 'blur(3px)' }} className="custom-container flex min-h-screen flex-col items-center p-24">
         </main>
+        {children}
       </body>
     </html>
   );

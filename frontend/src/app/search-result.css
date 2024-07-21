@@ -48,5 +48,25 @@
     border: none;
   }
   
-
+  .dist-bar div {
+    margin-right: 2px;
+  }
   
+  .dist-bar div:last-child {
+    margin-right: 0;
+  }
+  
+  .action-buttons a,
+.action-buttons button {
+  color: #0A2540;
+  transition: color 0.3s ease;
+}
+
+.action-buttons a:hover,
+.action-buttons button:hover {
+  color: #136ef8;
+}
+
+.action-buttons .icon {
+  color: #0A2540;
+}

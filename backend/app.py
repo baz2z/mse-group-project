@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
 
 # from retriever import main
 from retriever_v2 import main
+import pandas as pd
 
 app = FastAPI()
 # Set up CORS
@@ -23,36 +24,64 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+def preprocess_dist_string(dist_string):
+    # Remove leading and trailing spaces and brackets
+    dist_string = dist_string.strip().strip('[]')
+    
+    # Replace multiple spaces with a single comma
+    dist_string = ','.join(part.strip() for part in dist_string.split())
+    
+    # Add brackets around the string to ensure it's a valid JSON array format
+    return f'[{dist_string}]'
+
+
 @app.get("/search")
 def get_search_results(query: str):
     results = []
-    # results = main.mocked_retrieve(query)  # Assuming your main function takes a query as an argument
+
+    result_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'example_food_and_drinks.csv'))
+    results = pd.read_csv(result_path)
+    # Apply the preprocessing function to the 'dist' column
+    results['dist'] = results['dist'].apply(preprocess_dist_string)
+
+    print(f"results.iloc[:10][dist]: {results.iloc[:10]['dist']}")
+
+    # Calculate min and max scores
+    min_score = results['score'].min()
+    max_score = results['score'].max()
+
+    # Convert DataFrame to a list of dictionaries
+    results_list = results.to_dict(orient='records')
+
+    # Prepare the response
+    response = {
+        'top_results': results_list,
+        'min_score': min_score,
+        'max_score': max_score
+    }
+
+    # results =  [
+    #   {
+    #     'url': 'https://scholar.google.com/citations?user=QQi1_rAAAAAJ&hl=ja',
+    #     'score': 0.94,
+    #     'created:': '2024-07-14 18:45:53.202173',
+    #     'title': 'Example Page 1',
+    #     'abstract': 'This is a summary of example page 1.',
+    #   },
+    #   {
+    #     'url': 'https://www.tuebingen-info.de',
+    #     'score': 0.89,
+    #     'created:': '2024-07-14 18:45:53.202173',
+    #     'title': 'Example Page 2',
+    #     'abstract': 'This is a summary of example page 2.',
+    #   },
+    # {
+    #     'url': 'https://neckarmueller.de/',
+    #     'score': 0.5,
+    #     'created:': '2024-07-14 18:45:53.202173',
+    #     'title': 'Example Page 3',
+    #     'abstract': 'This is a summary of example page 3.',
+    #   },
+    # ]
     
-    ensemble_retriever = main.EnsembleRetriever()
-    r = ensemble_retriever.query(query)
-    # turn dataframe into list of jsons
-    results = r.to_dict(orient='records')
-
-    # start_time = time.time()
-    
-    # retrieval_path = Path(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src'))) / "retriever/dat/"
-    # index_dir = retrieval_path / "index/"
-    # index_mapping = retrieval_path / "index_mapping.csv"
-    # k_docs = 20993
-    # # print(f"index_dir {index_dir}")
-    # # print(f"index_mapping {index_mapping}")
-    # corpus_tue =  main.load_corpus(index_dir, k_docs)
-    # url_mapping = main.load_url_mapping_from_csv(index_mapping)
-    # print(f"len(url_mapping): {len(url_mapping)}")
-
-    # top_n, url_mapping_top_n = main.retrieve(corpus_path=index_dir, corpus=corpus_tue, url_mapping=url_mapping, query=query, reranker="NLI", n_bm25_docs=100)
-
-    # for id_num, (doc_id, score) in enumerate(top_n):
-    #     print(f"id_num: {id_num}, url_mapping_top_n.get(doc_id): {url_mapping_top_n.get(doc_id)}, score: {score:.4f}")
-    #     results.append({"url": url_mapping_top_n.get(doc_id), "score": score})
-    
-    # end_time = time.time()
-    # execution_time = end_time - start_time
-    # print(f"Execution time: {execution_time} seconds")
-
-    return results
+    return response
