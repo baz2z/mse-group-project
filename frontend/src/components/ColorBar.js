@@ -1,6 +1,6 @@
 import React from 'react';
 import { createColorMap, linearScale } from "@colormap/core";
-import { cividis, viridis, magma } from "@colormap/presets";
+import { cividis, viridis, magma, inferno, plasma, blackWhite } from "@colormap/presets";
 
 const ColorBar = () => {
   const colors = magma;
@@ -24,14 +24,14 @@ const ColorBar = () => {
 
   return (
     <div className="flex flex-row items-center text-center">
-      <span className="mr-2 text-sm font-semibold" style={{ color: `rgb(${Math.round(rBottom * 255)}, ${Math.round(gBottom * 255)}, ${Math.round(bBottom * 255)})` }}>
+      <span className="mr-2 text-sm font-semibold" style={{ color: '#0A2540' }}>
         Less Relevant
       </span>
       <div
         className="w-32 h-6"  // Adjust width and height for horizontal bar
         style={{ background: gradient }}
       ></div>
-      <span className="ml-2 text-sm font-semibold" style={{ color: `rgb(${Math.round(rTop * 255)}, ${Math.round(gTop * 255)}, ${Math.round(bTop * 255)})` }}>
+      <span className="ml-2 text-sm font-semibold" style={{ color: '#0A2540' }} >
         Highly Relevant
       </span>
     </div>

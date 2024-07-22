@@ -21,12 +21,10 @@ export default function RootLayout({ children }) {
           integrity="sha384-k6RqeWeci5ZR/Lv4MR0sA0FfDOMo8O4nBmg6JZRf2x4OjmHtTEjM8iGl3TE7Bg5M"
           crossOrigin="anonymous"
         />
-      </Head>
-      <Head>
-        <link rel='icon' href='/old_favicon.ico' />  
+        <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon.png"/>
       </Head>
       <body className="flex flex-col min-h-screen">
-        <nav className="absolute top-0 left-0 w-full z-20 bg-gradient-to-r from-white/20 to-white/10 backdrop-blur-md shadow-lg">
+        <nav className="top-0 left-0 w-full z-20 bg-gradient-to-r from-white/20 to-white/10 backdrop-blur-md shadow-lg sticky">
           <div className="container mx-auto flex items-center justify-between p-4 pl-10 pr-1">
             <div className="flex items-center">
               <img src="/uni_tuebingen_logo_black_white.png" alt="Tübingen Search Engine Logo" className="h-12 w-auto" />
@@ -36,7 +34,12 @@ export default function RootLayout({ children }) {
             </a>
           </div>
         </nav>
-        <main style={{ backgroundImage: `url(/tuebingen_neckar_1.jpg)`, backgroundSize: 'cover', filter: 'blur(3px)' }} className="custom-container flex min-h-screen flex-col items-center p-24">
+
+        <main style={{ backgroundImage: `url(/tuebingen_neckar_1.jpg)`, backgroundSize: 'cover', filter: 'blur(3px)' }} 
+              className="fixed left-0 right-0 flex min-h-screen flex-col items-center p-24">
+        </main>
+        <main className="fixed left-0 right-0 flex min-h-screen flex-col items-center p-24">
+          <div className="absolute inset-0 bg-cover" style={{ backgroundImage: `url(/tuebingen_neckar_1.jpg)`, filter: 'blur(3px)' }}></div>
         </main>
         {children}
       </body>

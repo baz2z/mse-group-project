@@ -1,17 +1,12 @@
 "use client"; // This is a client component 👈🏽
 
 import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { FaSearch, FaSpinner } from 'react-icons/fa';
 
-import axios from 'axios';
-
 import '../app/page-module.css';
-import SearchResult from './SearchResult';
-import AdvancedSearchResult from './AdvancedSearchResult';
 
 import categories from '../constants';
-import { getPageTitle } from '../utils'; 
 
 
 const SearchComponent = () => {
@@ -20,28 +15,21 @@ const SearchComponent = () => {
   const [showCategories, setShowCategories] = useState(false);
   const router = useRouter();
 
-  // useEffect(() => {
-  //   // Load the query from sessionStorage if available
-  //   const savedQuery = sessionStorage.getItem('search-query');
-  //   if (savedQuery) {
-  //     setQuery(savedQuery);
-  //   }
-  // }, []);
-
   const handleSearch = () => {
     if (query.trim()) {
-      // sessionStorage.setItem('search-query', query); // Save query to sessionStorage
-      router.push(`/search-results?query=${encodeURIComponent(query)}`);
+      const params = new URLSearchParams({ query: query });
+      if (selectedCategory) {
+        params.append('category', selectedCategory); // Or use the actual category if needed
+      }
+      router.push(`/search-results?${params.toString()}`);
     }
   };
 
   const handleCategoryChange = (newCategory) => {
     if (selectedCategory === newCategory) {
-      console.log('should change category to empty')
       setSelectedCategory('');
     } else {
       setSelectedCategory(newCategory);
-      console.log('Category changed to:', newCategory);
     }
     
   }
@@ -125,10 +113,9 @@ const SearchComponent = () => {
         {category}
       </button>
     ))}
-  </div>
-</div>
+      </div>
     </div>
-
+  </div>
 </div>
   );
 };

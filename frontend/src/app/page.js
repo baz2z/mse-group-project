@@ -16,11 +16,13 @@ export default function Home() {
     </main> */}
       <div className="custom-container flex min-h-screen flex-col items-center p-24 pt-32">
       <header className="text-center">
-        <h1 className="text-4xl font-bold tracking-tight">A gateway to the Heart of Tübingen</h1>
-        {/* <h2 className="text-2xl mt-2" style={{ fontFamily: lustria.style.fontFamily }}>Where wisdom meets charm</h2> */}
-        {/* <h2 className="text-2xl mt-2" style={{ fontFamily: lustria.style.fontFamily }}>Discover the Heart of Tübingen</h2> */}
-        <h2 className="text-lg mt-8" style={{ fontFamily: lustria.style.fontFamily }}>search to get relevant information on Tübingen</h2>
-      </header>
+      <h1 className="text-4xl font-bold text-white tracking-tight" style={{ textShadow: '2px 2px 4px rgba(0, 0, 0, 0.8)' }}>
+        A gateway to the Heart of Tübingen
+      </h1>
+      <h2 className="text-lg mt-8 text-white" style={{ fontFamily: lustria.style.fontFamily, textShadow: '2px 2px 4px rgba(0, 0, 0, 0.8)' }}>
+        search to get relevant information on Tübingen
+      </h2>
+    </header>
       <div className="mt-14">
           <SearchComponent />
         </div>
