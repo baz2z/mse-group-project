@@ -10,6 +10,7 @@ from nltk.corpus import stopwords
 INDEX_DIR = Path(__file__).parent / "index"
 EMBEDDINGS_DIR = INDEX_DIR / "embeddings"
 PICKLES_DIR = INDEX_DIR / "pickles"
+QUERIES_FILE = INDEX_DIR / "query_batch_file.txt"
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 TUBINGEN_PATTERN = re.compile(r"\bt(ü|ue|u)binge([nr])\b", re.IGNORECASE)
