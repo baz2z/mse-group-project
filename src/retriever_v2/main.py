@@ -1,12 +1,15 @@
+import sys
+import pandas as pd
 from pathlib import Path
 
-import pandas as pd
+src_dir = Path(__file__).resolve().parent.parent
+sys.path.append(str(src_dir))
 
 from retriever_v2.base import BaseRetriever, Document, RetrievalScore
 from retriever_v2.bm25 import BM25Retriever
 from retriever_v2.nli import NLIRetriever
 from retriever_v2.sim import SimRetriever
-from retriever_v2.utils import INDEX_DIR
+from retriever_v2.utils import INDEX_DIR, QUERIES_FILE
 
 
 class EnsembleRetriever(BaseRetriever):
@@ -108,22 +111,50 @@ class EnsembleRetriever(BaseRetriever):
         return df.head(k)
 
     def query_batch(
-        self, queries: list[str], *, k: int = 100
-    ) -> dict[str, pd.DataFrame]:
+        self, queries_file: Path, *, k: int = 100, save: bool = True
+    ) -> pd.DataFrame:
         """
         Query the ensemble retriever in batch.
 
         Args:
-            queries: List of query strings
-            k: Number of results to return
+            query_file (Path): Path to the query batch file (.txt)
+            k (int): Number of results to return
+            save (bool): Whether to save the results to a file
 
         Returns:
-            Dictionary of DataFrames with the top k results for each query
+            DataFrame with the top k results for each query. 
+            Columns: ['Query Number', 'Rank Number', 'URL', 'Score']
         """
-        raise NotImplementedError
+        queries = [line for line in queries_file.read_text(encoding="utf-8").splitlines()]
+        all_results = []
+
+        for query_number, query in enumerate(queries, start=1):
+            df = self.query(query, k=k)
+            for rank, row in enumerate(df.itertuples(index=False), start=1):
+                all_results.append([query_number, rank, row.url, row.score])
+                if rank == k:
+                    break
+
+        results_df = pd.DataFrame(all_results, columns=['Query Number', 'Rank Number', 'URL', 'Score'])
+
+        if save:
+            results_df.to_csv(INDEX_DIR / "results.csv", index=False)
+            results_df.to_csv(INDEX_DIR / "results.txt", sep="\t", index=False, header=False)
+
+        return results_df
 
 
 if __name__ == "__main__":
-    ensemble_retriever = EnsembleRetriever(use_fast=True)
-    r = ensemble_retriever.query("attractions")
-    r.to_csv("example_food_and_drinks.csv", index=False)
+    
+    ensemble_retriever = EnsembleRetriever(use_fast=False, pre_k=512)
+    rs = ensemble_retriever.query_batch(QUERIES_FILE)
+    
+    # query = "attractions"
+    # r = ensemble_retriever.query(query)
+    # r.to_csv(f"example_{query}.csv", index=False)
+    
+    
+    
+    
+    
+    
