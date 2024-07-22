@@ -44,14 +44,16 @@ def get_search_results(query: str, category: str = None):
     # result_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'example_food_and_drinks.csv'))
     # results = pd.read_csv(result_path)
     # # Apply the preprocessing function to the 'dist' column
-    # results['dist'] = results['dist'].apply(preprocess_dist_string)
-    ensemble_retriever = main.EnsembleRetriever(use_fast=True)
+    ensemble_retriever = main.EnsembleRetriever(use_fast=False, pre_k=256)
     results = ensemble_retriever.query(query)
 
     # Calculate min and max scores
     min_score = results['score'].min()
     max_score = results['score'].max()
 
+    results['dist'] = results['dist'].apply(lambda x: str(x.tolist()))
+    results['dist'] = results['dist'].apply(preprocess_dist_string)
+    
     # Prepare the response
     response = {
         'top_results': [],
