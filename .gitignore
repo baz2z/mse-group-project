@@ -9,3 +9,4 @@ src/retriever_v2/index/pickles/*.pkl
 
 src/retriever_v2/index/html/*.html
 src/retriever_v2/index/html/*
+src/retriever_v2/index/*.txt
