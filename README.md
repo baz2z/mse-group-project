@@ -3,7 +3,7 @@
 Welcome to the Tübingen Search Engine project repository! This project aims to build a search engine focused on
 Tübingen, integrating web crawling, information retrieval, and a modern web interface.
 
-![Pipeline](doc/Download.png) 
+![Pipeline](doc/pipeline.png) 
 Visualization source: [Jina AI](https://jina.ai/reranker)
 
 ## Project Structure
