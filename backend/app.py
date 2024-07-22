@@ -52,7 +52,6 @@ def get_search_results(query: str, category: str = None):
     max_score = results['score'].max()
 
     results['dist'] = results['dist'].apply(lambda x: str(x.tolist()))
-    results['dist'] = results['dist'].apply(preprocess_dist_string)
     
     # Prepare the response
     response = {
