@@ -18,21 +18,17 @@ const ColorBar = () => {
   // Update gradient direction to flow from left to right
   const gradient = `linear-gradient(to right, ${gradientSteps.join(', ')})`;
 
-  // Top-most and bottom-most colors for text color
-  const [rTop, gTop, bTop] = colorMap(1);
-  const [rBottom, gBottom, bBottom] = colorMap(0);
-
   return (
     <div className="flex flex-row items-center text-center">
       <span className="mr-2 text-sm font-semibold" style={{ color: '#0A2540' }}>
-        Less Relevant
+        Highly Relevant
       </span>
       <div
         className="w-32 h-6"  // Adjust width and height for horizontal bar
         style={{ background: gradient }}
       ></div>
       <span className="ml-2 text-sm font-semibold" style={{ color: '#0A2540' }} >
-        Highly Relevant
+        Less Relevant
       </span>
     </div>
   );
