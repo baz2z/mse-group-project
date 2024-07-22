@@ -40,13 +40,10 @@ def get_search_results(query: str, category: str = None):
         query = expand_query_with_wordnet(query, category)
         print(f"New Query to be sent to retrieval model: {query}")
     results = []
-
-    # result_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'example_food_and_drinks.csv'))
-    # results = pd.read_csv(result_path)
-    # # Apply the preprocessing function to the 'dist' column
+    
     ensemble_retriever = main.EnsembleRetriever(use_fast=False, pre_k=256)
     results = ensemble_retriever.query(query)
-
+    
     # Calculate min and max scores
     min_score = results['score'].min()
     max_score = results['score'].max()
@@ -55,28 +52,9 @@ def get_search_results(query: str, category: str = None):
     
     # Prepare the response
     response = {
-        'top_results': [],
-        # 'html': [],
+        'top_results': results.to_dict(orient='records'),
         'min_score': min_score,
         'max_score': max_score
     }
-
-    html_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src', 'retriever_v2', 'index', 'html'))
-    
-    for index, row in tqdm(results.iterrows(), total=results.shape[0], desc="Processing HTML files"):
-        doc_id = row['doc_id']
-        html_path = os.path.join(html_dir, f"{doc_id}.html")
-        if os.path.exists(html_path):
-            with open(html_path, 'r', encoding='utf-8') as file:
-                html_content = file.read()
-            title = extract_title(html_content)
-            description = extract_description(html_content) or extract_first_paragraph(html_content)
-            # sanitized_html = sanitize_html(html_content)
-            
-            row_dict = row.to_dict()
-            row_dict['title'] = title
-            row_dict['description'] = description
-            response['top_results'].append(row_dict)
-            # response['html'].append(sanitized_html)
     
     return response

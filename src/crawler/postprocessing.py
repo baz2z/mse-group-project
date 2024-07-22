@@ -212,4 +212,6 @@ def copy_en():
 
 
 if __name__ == "__main__":
+    process_all()
+    clean_dir()
     copy_en()
