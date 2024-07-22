@@ -26,34 +26,6 @@ TUBINGEN_PATTERN = re.compile(r"t(ü|ue|u)binge([nr])", re.IGNORECASE)
 # Regular expression to match the English language code
 ENGLISH_PATTERN = re.compile(r"^en([-_](us|gb|de))?$", re.IGNORECASE)
 
-# Regular expressions to match the denied domains
-DENIED_DOMAINS = {
-    re.compile(r"(?!en|de)\.wiki\w*\.org"),
-    re.compile(r"web.archive.org"),
-    re.compile(r"facebook.com"),
-    re.compile(r"twitter.com"),
-    re.compile(r"youtube.com"),
-    re.compile(r"instagram.com"),
-    re.compile(r"linkedin.com"),
-    re.compile(r"reddit.com"),
-}
-
-# HTTP headers to use for the requests to simulate a browser
-headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-    "AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/88.0.4324.150 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;"
-    "q=0.9,image/avif,image/webp,image/apng,*/*;"
-    "q=0.8,application/signed-exchange;v=b3;q=0.9",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Referer": "https://www.google.com/",
-    "Connection": "keep-alive",
-    "Upgrade-Insecure-Requests": "1",
-    "DNT": "1",
-}
-
 
 class Crawler:
     """
@@ -94,7 +66,7 @@ class Crawler:
         """
         if self._client is None:
             self.logger.info("Creating a new HTTP client")
-            self._client = AsyncClient(headers=headers)
+            self._client = AsyncClient(headers=self.config.headers)
         return self._client
 
     def html_too_large(self, content: bytes) -> bool:
@@ -198,7 +170,7 @@ class Crawler:
             return (
                 url.is_absolute_url
                 and url.scheme in {"http", "https"}
-                and not any(d.search(url.host) for d in DENIED_DOMAINS)
+                and not any(d.search(url.host) for d in self.config.denied_domains)
             )
         except Exception as e:
             self.logger.debug(f"Invalid URL: {url}, {e}")
