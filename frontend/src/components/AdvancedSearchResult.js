@@ -11,11 +11,11 @@ const AdvancedSearchResult = ({ searchResult, min_score, max_score }) => {
   const [previewError, setPreviewError] = useState(false);
   const iframeRef = useRef(null);
 
-  const colors = magma; // Colormap
+  const reversedColors = [...magma].reverse(); // Reverse the colormap
   const domain = [min_score, max_score];
   const range = [0, 1];
   const scale = linearScale(domain, range);
-  const colorMap = createColorMap(colors, scale);
+  const colorMap = createColorMap(reversedColors, scale);
 
   const getBackgroundColor = (score) => {
     const [r, g, b] = colorMap(score);
